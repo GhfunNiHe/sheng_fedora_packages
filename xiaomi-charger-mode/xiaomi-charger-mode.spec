@@ -1,12 +1,12 @@
 %global debug_package %{nil}
 
 Name:           xiaomi-charger-mode
-Version:        0.1
+Version:        0.20
 Release:        1%{?dist}
 Summary:        Charger mode boot handler for Xiaomi Pad 6S Pro
 License:        GPL-2.0-only
 URL:            https://github.com/ianchb/xiaomi-charger-mode
-Source0:        %{url}/archive/refs/heads/master.tar.gz#/%{name}-master.tar.gz
+Source0:        %{url}/archive/refs/tags/%{version}.tar.gz#/%{name}-%{version}.tar.gz
 BuildArch:      noarch
 BuildRequires:  systemd-rpm-macros
 Requires:       python3
@@ -17,7 +17,7 @@ blocks normal boot, draws a framebuffer charging screen, runs xiaomi-mipps-auth
 for fast charging, and handles power-off when unplugged or reboot on long-press.
 
 %prep
-%autosetup -n %{name}-master
+%autosetup -n %{name}-%{version}
 
 %build
 # Python script, no compilation

@@ -21,7 +21,7 @@ Source1:         https://github.com/ianchb/sm8550-mainline/releases/download/%{K
 Source2:         scripts/mkbootimg
 
 BuildRequires:   bc bison dwarves diffutils elfutils-devel findutils git-core hmaccalc hostname make openssl-devel perl-interpreter rsync tar which flex bzip2 xz zstd python3 python3-devel python3-pyyaml rust rust-src bindgen rustfmt clippy opencsd-devel net-tools
-BuildRequires:   clang lld llvm ccache systemd-boot
+BuildRequires:   clang lld llvm ccache systemd-boot systemd-ukify
 
 Provides:        kernel               = %{version}-%{release}
 Provides:        kernel-core          = %{version}-%{release}

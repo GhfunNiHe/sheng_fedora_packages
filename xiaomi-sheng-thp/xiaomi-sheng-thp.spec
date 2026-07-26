@@ -1,12 +1,12 @@
 %global debug_package %{nil}
 
 Name:           xiaomi-sheng-thp
-Version:        0.1
+Version:        0.3.9
 Release:        1%{?dist}
 Summary:        Touch Host Processor for Xiaomi Pad 6S Pro
 License:        Apache-2.0
 URL:            https://github.com/ianchb/xiaomi-sheng-thp
-Source0:        %{url}/archive/refs/heads/master.tar.gz#/%{name}-master.tar.gz
+Source0:        %{url}/archive/refs/tags/v%{version}.tar.gz#/%{name}-v%{version}.tar.gz
 ExclusiveArch:  aarch64
 BuildRequires:  gcc-c++ glib2-devel libssc bluez-libs-devel
 BuildRequires:  systemd-rpm-macros
@@ -18,7 +18,7 @@ from the kernel and creates standard Linux input devices through uinput for
 the Novatek NT36532E touch controller.
 
 %prep
-%autosetup -n %{name}-master
+%autosetup -n %{name}-%{version}
 
 %build
 # Add /usr/include/glib-2.0 and /usr/lib64/glib-2.0 to pkg-config path if needed

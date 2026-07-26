@@ -54,11 +54,16 @@ jobs:
             tar -czf ~/rpmbuild/SOURCES/$name.tar.gz "$name"
             rm -rf "$name"
           done
-          # Download Fedora libfprint source for fingerprint build
-          dnf download --source libfprint --destdir ~/rpmbuild/SOURCES/
+          # Download libfprint source for fingerprint build
+          dnf download --source libfprint --destdir ~/rpmbuild/SOURCES/ 2>/dev/null || true
           for src in ~/rpmbuild/SOURCES/libfprint-*.src.rpm; do
             [ -f "$src" ] && rpm2cpio "$src" | cpio -idm -D ~/rpmbuild/SOURCES/ "*tar*" 2>/dev/null
           done
+          # Fallback: download directly from gitlab if dnf source failed
+          if [ ! -f ~/rpmbuild/SOURCES/libfprint-src.tar.xz ]; then
+            curl -fL -o ~/rpmbuild/SOURCES/libfprint-src.tar.xz \
+              'https://gitlab.freedesktop.org/libfprint/libfprint/-/archive/v1.94.10/libfprint-v1.94.10.tar.gz'
+          fi
 
       # ================================================================
       # Phase 1: Noarch packages
@@ -158,8 +163,8 @@ jobs:
 
       - name: "Build: kernel-sm8550"
         run: |
-          mkdir -p ~/.ccache ~/rpmbuild/SOURCES/scripts
-          cp scripts/mkbootimg ~/rpmbuild/SOURCES/scripts/mkbootimg
+          mkdir -p ~/.ccache
+          cp scripts/mkbootimg ~/rpmbuild/SOURCES/mkbootimg
           dnf builddep -y ./kernel-sm8550/kernel-sm8550.spec
           rpmbuild -ba --nodebuginfo ./kernel-sm8550/kernel-sm8550.spec
           createrepo_c --update ~/rpmbuild/RPMS

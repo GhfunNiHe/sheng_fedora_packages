@@ -1,12 +1,12 @@
 %global debug_package %{nil}
 
 Name:           xiaomi-pen-status
-Version:        0.1
+Version:        0.2.3
 Release:        1%{?dist}
 Summary:        Stylus pen status tray utility for Xiaomi Pad 6S Pro
 License:        GPL-2.0-only
 URL:            https://github.com/ianchb/xiaomi-pen-status
-Source0:        %{url}/archive/refs/heads/master.tar.gz#/%{name}-master.tar.gz
+Source0:        %{url}/archive/refs/tags/v%{version}.tar.gz#/%{name}-v%{version}.tar.gz
 ExclusiveArch:  aarch64
 BuildRequires:  qt6-qtbase-devel qt6-qtsvg-devel
 Requires:       qt6-qtbase qt6-qtsvg
@@ -16,7 +16,7 @@ Small Qt tray utility that displays stylus power-state attributes exported
 by qcom_battmgr for the Xiaomi Pad 6S Pro 12.4 (sheng).
 
 %prep
-%autosetup -n %{name}-master
+%autosetup -n %{name}-%{version}
 
 %build
 qmake6 xiaomi-pen-status.pro

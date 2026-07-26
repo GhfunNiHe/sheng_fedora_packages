@@ -9,7 +9,7 @@ Release:        1%{?dist}
 Summary:        FPC1553 fingerprint sensor support for Xiaomi Pad 6S Pro
 License:        Apache-2.0 AND LGPL-2.1-or-later AND GPL-2.0-or-later
 URL:            https://github.com/ianchb/xiaomi-sheng-fingerprint
-Source0:        %{url}/archive/refs/heads/master.tar.gz#/%{name}-master.tar.gz
+Source0:        %{url}/archive/refs/tags/v%{version}.tar.gz#/%{name}-v%{version}.tar.gz
 Source1:        libfprint-src.tar.xz
 ExclusiveArch:  aarch64
 BuildRequires:  gcc meson ninja-build patchelf curl
@@ -24,7 +24,7 @@ backend library, a patched libfprint with the FPC1553 driver, QTEE
 supplicant, and systemd integration.
 
 %prep
-%autosetup -n %{name}-master
+%autosetup -n %{name}-%{version}
 
 # Verify prebuilt binaries
 sha256sum -c prebuilt/aarch64/SHA256SUMS
@@ -39,7 +39,7 @@ mkdir -p "%{fingerprint_build_dir}"
 AR_WORK="%{fingerprint_build_dir}/minkadaptor"
 mkdir -p "$AR_WORK"
 cd "$AR_WORK"
-ar x "%{_builddir}/xiaomi-sheng-fingerprint-master/prebuilt/aarch64/build-libs/libminkadaptor.a"
+ar x "%{_builddir}/%{name}-%{version}/prebuilt/aarch64/build-libs/libminkadaptor.a"
 objcopy --redefine-sym recv_ioctl=mink_recv_ioctl \
     --redefine-sym recv=mink_recv_svc \
     --redefine-sym recv_skip=mink_recv_skip supplicant.c.o
@@ -48,7 +48,7 @@ objcopy --redefine-sym recv_ioctl=mink_recv_ioctl \
     --redefine-sym recv_skip=mink_recv_skip syscall.S.o
 ar rcs libminkadaptor-fixed.a mink_adaptor.c.o supplicant.c.o syscall.S.o
 
-cd "%{_builddir}/xiaomi-sheng-fingerprint-master"
+cd "%{_builddir}/%{name}-%{version}"
 gcc -O2 -DNDEBUG -Wall -Wextra -fPIC -shared -pthread \
     -Wl,-soname,libfpc1553-qtee.so -Wl,-z,relro -Wl,-z,now \
     -Ibackend/include -Ithird_party/mink/include -Ithird_party/QCBOR/inc \
@@ -78,11 +78,11 @@ mkdir -p "%{fingerprint_build_dir}/src"
 tar -xf %{SOURCE1} -C "%{fingerprint_build_dir}/src" --strip-components=1
 
 cd "%{fingerprint_build_dir}/src"
-patch -p1 < "%{_builddir}/xiaomi-sheng-fingerprint-master/patches/libfprint/0001-libfprint-add-fpc1553.patch"
+patch -p1 < "%{_builddir}/%{name}-%{version}/patches/libfprint/0001-libfprint-add-fpc1553.patch"
 
 VENDOR_DIR="%{fingerprint_build_dir}/vendor/QCBOR-1.6/inc"
 install -d -m 0755 "$VENDOR_DIR"
-cp -R "%{_builddir}/xiaomi-sheng-fingerprint-master/third_party/QCBOR/inc/." "$VENDOR_DIR/"
+cp -R "%{_builddir}/%{name}-%{version}/third_party/QCBOR/inc/." "$VENDOR_DIR/"
 
 meson setup "%{fingerprint_build_dir}/build" "%{fingerprint_build_dir}/src" \
     --buildtype=release --strip \
@@ -96,7 +96,7 @@ LIBFPRINT_SO="%{fingerprint_build_dir}/build/libfprint/libfprint-2.so.2.0.0"
 patchelf --set-rpath '$ORIGIN' "$LIBFPRINT_SO"
 
 %install
-cd "%{_builddir}/xiaomi-sheng-fingerprint-master"
+cd "%{_builddir}/%{name}-%{version}"
 
 install -d -m 0755 %{buildroot}%{_libdir}/xiaomi-sheng-fingerprint
 install -d -m 0755 %{buildroot}%{_libdir}/qtee-listeners

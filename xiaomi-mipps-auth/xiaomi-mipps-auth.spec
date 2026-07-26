@@ -6,7 +6,7 @@ Release:        1%{?dist}
 Summary:        Xiaomi MiPPS charger authentication for sheng
 License:        GPL-2.0-only
 URL:            https://github.com/ianchb/xiaomi-mipps-auth
-Source0:        %{url}/archive/refs/heads/master.tar.gz#/%{name}-master.tar.gz
+Source0:        %{url}/archive/refs/tags/%{version}.tar.gz#/%{name}-%{version}.tar.gz
 BuildArch:      noarch
 BuildRequires:  systemd-rpm-macros
 Requires:       python3 util-linux
@@ -17,7 +17,7 @@ Handles PD/VDM handshake with Xiaomi chargers to enable fast charging and
 sends desktop notifications about charge status.
 
 %prep
-%autosetup -n %{name}-master
+%autosetup -n %{name}-%{version}
 
 %build
 # Python script, no compilation

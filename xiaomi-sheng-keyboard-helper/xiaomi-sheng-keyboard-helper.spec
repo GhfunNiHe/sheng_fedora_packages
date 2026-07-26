@@ -6,7 +6,7 @@ Release:        1%{?dist}
 Summary:        Keyboard cover helper for Xiaomi Pad 6S Pro
 License:        Apache-2.0
 URL:            https://github.com/ianchb/xiaomi-sheng-keyboard-helper
-Source0:        %{url}/archive/refs/heads/master.tar.gz#/%{name}-master.tar.gz
+Source0:        %{url}/archive/refs/tags/v%{version}.tar.gz#/%{name}-v%{version}.tar.gz
 ExclusiveArch:  aarch64
 BuildRequires:  gcc glib2-devel libssc
 BuildRequires:  systemd-rpm-macros
@@ -19,7 +19,7 @@ cover is nearly closed or folded behind, and synchronizes a microphone mute
 indicator with PipeWire.
 
 %prep
-%autosetup -n %{name}-master
+%autosetup -n %{name}-%{version}
 
 %build
 %make_build CC=gcc
