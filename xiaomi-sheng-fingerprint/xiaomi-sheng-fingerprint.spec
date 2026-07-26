@@ -1,6 +1,7 @@
 %global debug_package %{nil}
 
 %global version_local 0.1.4
+%global fingerprint_build_dir %{_topdir}/BUILD/fingerprint-build
 
 Name:           xiaomi-sheng-fingerprint
 Version:        %{version_local}
@@ -32,10 +33,10 @@ sha256sum -c prebuilt/aarch64/SHA256SUMS
 # -------------------------------------------------------------------
 # 1. Build backend library (libfpc1553-qtee.so)
 # -------------------------------------------------------------------
-WORK_DIR=$(mktemp -d)
-trap 'rm -rf "$WORK_DIR"' EXIT
+rm -rf "%{fingerprint_build_dir}"
+mkdir -p "%{fingerprint_build_dir}"
 
-AR_WORK="$WORK_DIR/minkadaptor"
+AR_WORK="%{fingerprint_build_dir}/minkadaptor"
 mkdir -p "$AR_WORK"
 cd "$AR_WORK"
 ar x "%{_builddir}/xiaomi-sheng-fingerprint-master/prebuilt/aarch64/build-libs/libminkadaptor.a"
@@ -51,45 +52,47 @@ cd "%{_builddir}/xiaomi-sheng-fingerprint-master"
 gcc -O2 -DNDEBUG -Wall -Wextra -fPIC -shared -pthread \
     -Wl,-soname,libfpc1553-qtee.so -Wl,-z,relro -Wl,-z,now \
     -Ibackend/include -Ithird_party/mink/include -Ithird_party/QCBOR/inc \
-    -o "$WORK_DIR/libfpc1553-qtee.so" \
+    -o "%{fingerprint_build_dir}/libfpc1553-qtee.so" \
     backend/src/fpc_qtee_client.c backend/src/fpc_protocol.c \
     backend/src/fpc_db_store.c backend/src/fpc_index.c \
     backend/src/gatekeeper_client.c backend/src/gatekeeper_identity.c \
     backend/src/gatekeeper_protocol.c \
+    -Wl,--whole-archive \
     prebuilt/aarch64/build-libs/librpmbservice.a \
     prebuilt/aarch64/build-libs/libqcomtee.a \
     prebuilt/aarch64/build-libs/libqcbor.a \
-    "$AR_WORK/libminkadaptor-fixed.a" -lm
-strip --strip-unneeded "$WORK_DIR/libfpc1553-qtee.so"
+    "$AR_WORK/libminkadaptor-fixed.a" \
+    -Wl,--no-whole-archive -lm
+strip --strip-unneeded "%{fingerprint_build_dir}/libfpc1553-qtee.so"
 
-mkdir -p "$WORK_DIR/backend"
-install -m 0644 "$WORK_DIR/libfpc1553-qtee.so" "$WORK_DIR/backend/"
-install -m 0644 backend/include/*.h "$WORK_DIR/backend/"
+mkdir -p "%{fingerprint_build_dir}/backend"
+install -m 0644 "%{fingerprint_build_dir}/libfpc1553-qtee.so" "%{fingerprint_build_dir}/backend/"
+install -m 0644 backend/include/*.h "%{fingerprint_build_dir}/backend/"
 
 # -------------------------------------------------------------------
 # 2. Build patched libfprint (private install, fpc1553 driver only)
 # -------------------------------------------------------------------
 export CCACHE_DISABLE=1
 
-mkdir -p "$WORK_DIR/src"
-tar -xf %{SOURCE1} -C "$WORK_DIR/src" --strip-components=1
+mkdir -p "%{fingerprint_build_dir}/src"
+tar -xf %{SOURCE1} -C "%{fingerprint_build_dir}/src" --strip-components=1
 
-cd "$WORK_DIR/src"
+cd "%{fingerprint_build_dir}/src"
 patch -p1 < "%{_builddir}/xiaomi-sheng-fingerprint-master/patches/libfprint/0001-libfprint-add-fpc1553.patch"
 
-VENDOR_DIR="$WORK_DIR/vendor/QCBOR-1.6/inc"
+VENDOR_DIR="%{fingerprint_build_dir}/vendor/QCBOR-1.6/inc"
 install -d -m 0755 "$VENDOR_DIR"
 cp -R "%{_builddir}/xiaomi-sheng-fingerprint-master/third_party/QCBOR/inc/." "$VENDOR_DIR/"
 
-meson setup "$WORK_DIR/build" "$WORK_DIR/src" \
+meson setup "%{fingerprint_build_dir}/build" "%{fingerprint_build_dir}/src" \
     --buildtype=release --strip \
     --prefix=%{_prefix} --libdir=lib/xiaomi-sheng-fingerprint \
-    -Ddrivers=fpc1553 -Dfpc1553_backend_dir="$WORK_DIR/backend" \
+    -Ddrivers=fpc1553 -Dfpc1553_backend_dir="%{fingerprint_build_dir}/backend" \
     -Dintrospection=false -Ddoc=false -Dinstalled-tests=false \
     -Dgtk-examples=false -Dudev_rules=disabled -Dudev_hwdb=disabled
-meson compile -C "$WORK_DIR/build"
+meson compile -C "%{fingerprint_build_dir}/build"
 
-LIBFPRINT_SO="$WORK_DIR/build/libfprint/libfprint-2.so.2.0.0"
+LIBFPRINT_SO="%{fingerprint_build_dir}/build/libfprint/libfprint-2.so.2.0.0"
 patchelf --set-rpath '$ORIGIN' "$LIBFPRINT_SO"
 
 %install
@@ -100,13 +103,13 @@ install -d -m 0755 %{buildroot}%{_libdir}/qtee-listeners
 install -d -m 0755 %{buildroot}%{_libexecdir}
 
 # Private libfprint + backend
-install -m 0644 "$WORK_DIR/libfprint-2.so.2.0.0" \
+install -m 0644 "%{fingerprint_build_dir}/build/libfprint/libfprint-2.so.2.0.0" \
     %{buildroot}%{_libdir}/xiaomi-sheng-fingerprint/
 ln -s libfprint-2.so.2.0.0 \
     %{buildroot}%{_libdir}/xiaomi-sheng-fingerprint/libfprint-2.so.2
 ln -s libfprint-2.so.2 \
     %{buildroot}%{_libdir}/xiaomi-sheng-fingerprint/libfprint-2.so
-install -m 0644 "$WORK_DIR/libfpc1553-qtee.so" \
+install -m 0644 "%{fingerprint_build_dir}/libfpc1553-qtee.so" \
     %{buildroot}%{_libdir}/xiaomi-sheng-fingerprint/
 
 # Prebuilt QTEE runtime
@@ -114,9 +117,9 @@ install -m 0755 prebuilt/aarch64/qteesupplicant %{buildroot}%{_libexecdir}/
 install -m 0755 prebuilt/aarch64/sfs_config %{buildroot}%{_libexecdir}/fpc-sfs-config
 for listener in prebuilt/aarch64/qtee-listeners/*.so.1.0.0; do
     name=$(basename "$listener")
-    base=${name%%.0.0}
+    base=${name%.1.0.0}
     install -m 0644 "$listener" %{buildroot}%{_libdir}/qtee-listeners/"$name"
-    ln -s "$name" %{buildroot}%{_libdir}/qtee-listeners/"$base".so
+    ln -s "$name" %{buildroot}%{_libdir}/qtee-listeners/"$base"
 done
 
 # systemd

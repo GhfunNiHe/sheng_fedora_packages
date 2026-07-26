@@ -166,9 +166,22 @@ jobs:
           echo "=== ccache stats ==="
           ccache --show-stats
 
+          # Collect boot images and UKI for separate release
+          mkdir -p ~/rpmbuild/images
+          cp ~/rpmbuild/BUILD/boot_*.img ~/rpmbuild/images/ 2>/dev/null || true
+          find ~/rpmbuild/BUILD -name 'bootaa64.efi' -exec cp {} ~/rpmbuild/images/ \; 2>/dev/null || true
+
       # ================================================================
       # Upload
       # ================================================================
+      - name: Upload images
+        uses: actions/upload-artifact@v7
+        with:
+          name: sheng-images
+          path: ~/rpmbuild/images/**
+          retention-days: 14
+          if-no-files-found: warn
+
       - name: Upload RPMs
         uses: actions/upload-artifact@v7
         with:
@@ -188,7 +201,7 @@ jobs:
   # ==================================================================
   # GitHub Release
   # ==================================================================
-  main:
+  release:
     name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
@@ -202,19 +215,29 @@ jobs:
           name: sheng-rpms
           path: rpms
 
-      - name: Delete old main tag
-        run: |
-          gh main delete sheng-latest --yes --cleanup-tag 2>/dev/null || true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download images
+        uses: actions/download-artifact@v8
+        with:
+          name: sheng-images
+          path: images
         continue-on-error: true
 
-      - name: Create Release
-        uses: softprops/action-gh-main@v1
+      - name: Create RPM Release
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: sheng-latest
           name: Sheng RPMs (latest)
           files: rpms/**/*.rpm
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Boot Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: sheng-boot-latest
+          name: Sheng Boot Images (latest)
+          files: images/**
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
