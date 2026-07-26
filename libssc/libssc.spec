@@ -1,43 +1,26 @@
+%global debug_package %{nil}
+
 Name:           libssc
-Version:        0.2.2
-Release:        %autorelease
-Summary:        Library to expose Qualcomm Sensor Core sensors
-
-License:        GPL-3.0-or-later
+Version:        0.3.0
+Release:        1%{?dist}
+Summary:        Qualcomm Sensor Core userspace library
+License:        GPLv3
 URL:            https://codeberg.org/DylanVanAssche/libssc
-Source:         %{url}/archive/v%{version}.tar.gz
-
-BuildRequires:  gcc
-BuildRequires:  meson
+Source0:        https://codeberg.org/DylanVanAssche/libssc/archive/main.tar.gz#/%{name}-main.tar.gz
+Patch0:         wait_for_qmi_service.patch
+ExclusiveArch:  aarch64
+BuildRequires:  gcc meson ninja-build
+BuildRequires:  glib2-devel protobuf-c-devel
+BuildRequires:  libqmi-devel libmbim-devel
 BuildRequires:  python3-devel
-BuildRequires:  systemd
-BuildRequires:  pkgconfig(libprotobuf-c)
-BuildRequires:  pkgconfig(glib)
-BuildRequires:  pkgconfig(gudev-1.0)
-BuildRequires:  pkgconfig(qmi-glib)
-BuildRequires:  pkgconfig(qrtr)
-BuildRequires:  pkgconfig(udev)
+Requires:       glib2 protobuf-c libqmi
 
 %description
-libssc is a library to expose the sensors managed by the Qualcomm Sensor
-Core found in many Qualcomm System-on-Chips (SoCs) from 2018 and onwards.
-
-%package devel
-Summary:	Development headers for libssc
-Requires:	%{name}%{?_isa} = %{?epoch:%{epoch}:}%{version}-%{release}
-
-%description devel
-%{summary}.
-
-%package -n python3-ssc
-Summary:    Python bindings for libssc
-Requires:   %{name}%{?_isa} = %{?epoch:%{epoch}:}%{version}-%{release}
-
-%description -n python3-ssc
-%{summary}.
+Userspace library to expose Qualcomm Sensor Core (SSC) sensors via QMI.
+Provides the ssccli command-line tool for interacting with SSC sensors.
 
 %prep
-%autosetup -p1 -n %{name}
+%autosetup -p1 -n libssc
 
 %build
 %meson
@@ -47,20 +30,12 @@ Requires:   %{name}%{?_isa} = %{?epoch:%{epoch}:}%{version}-%{release}
 %meson_install
 
 %files
-%license LICENSE
-%{_bindir}/ssc-server
-%{_bindir}/ssc-server-tests
 %{_bindir}/ssccli
-%{_libdir}/%{name}.so.0
-
-%files devel
-%{_includedir}/%{name}
-%{_libdir}/%{name}.so
-%{_libdir}/pkgconfig/%{name}.pc
-
-%files -n python3-ssc
-%pycached %{python3_sitelib}/qmi.py
-%pycached %{python3_sitelib}/ssc.py
+%{_libdir}/libssc.so
+%{_libdir}/libssc.so.*
+%{_includedir}/libssc
+%{_libdir}/pkgconfig/libssc.pc
+%exclude %{_libexecdir}/installed-tests
+%exclude %{python3_sitelib}/ssc_server
 
 %changelog
-%autochangelog

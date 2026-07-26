@@ -1,0 +1,220 @@
+name: Build Sheng RPM Packages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*.spec'
+      - '**/Makefile'
+      - '**/*.c'
+      - '**/*.cpp'
+      - '**/*.h'
+      - '**/*.hpp'
+      - '.github/workflows/build-sheng-rpms.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build RPMs
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: fedora:latest
+
+    steps:
+      - name: Install build tools
+        run: |
+          dnf install -y rpmdevtools dnf-plugins-core createrepo_c rpm-sign systemd-rpm-macros
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup rpmbuild dirs
+        run: |
+          mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+
+      # ================================================================
+      # Download all sources
+      # ================================================================
+      - name: Download all sources
+        run: |
+          dnf install -y spectool dnf-plugins-core
+          for spec in $(find . -name "*.spec" -not -path '*/.git/*'); do
+            if grep -q "^Source0:" "$spec" 2>/dev/null; then
+              echo "Downloading sources for $spec..."
+              spectool -g -R "$spec"
+            fi
+          done
+          # Create tarballs for specs with local files (no external Source0)
+          for dir in alsa-xiaomi-sheng sheng-sensors; do
+            name=$(rpmspec -q --queryformat "%{NAME}-%{VERSION}" "$dir/$dir.spec")
+            tmpdir=$(mktemp -d)
+            cp -r "$dir"/usr "$dir"/etc "$tmpdir/" 2>/dev/null || true
+            mv "$tmpdir" "$name"
+            tar -czf ~/rpmbuild/SOURCES/$name.tar.gz "$name"
+            rm -rf "$name"
+          done
+          # Download Fedora libfprint source for fingerprint build
+          dnf download --source libfprint --destdir ~/rpmbuild/SOURCES/
+          for src in ~/rpmbuild/SOURCES/libfprint-*.src.rpm; do
+            [ -f "$src" ] && rpm2cpio "$src" | cpio -idm -D ~/rpmbuild/SOURCES/ "*tar*" 2>/dev/null
+          done
+
+      # ================================================================
+      # Phase 1: Noarch packages
+      # ================================================================
+      - name: "Build: xiaomi-sheng-firmware"
+        run: rpmbuild -ba --nodebuginfo ./xiaomi-sheng-firmware/xiaomi-sheng-firmware.spec && createrepo_c --update ~/rpmbuild/RPMS
+
+      - name: "Build: alsa-xiaomi-sheng"
+        run: rpmbuild -ba --nodebuginfo ./alsa-xiaomi-sheng/alsa-xiaomi-sheng.spec && createrepo_c --update ~/rpmbuild/RPMS
+
+      - name: "Build: xiaomi-mipps-auth"
+        run: rpmbuild -ba --nodebuginfo ./xiaomi-mipps-auth/xiaomi-mipps-auth.spec && createrepo_c --update ~/rpmbuild/RPMS
+
+      - name: "Build: xiaomi-charger-mode"
+        run: rpmbuild -ba --nodebuginfo ./xiaomi-charger-mode/xiaomi-charger-mode.spec && createrepo_c --update ~/rpmbuild/RPMS
+
+      - name: "Build: sheng-sensors"
+        run: rpmbuild -ba --nodebuginfo ./sheng-sensors/sheng-sensors.spec && createrepo_c --update ~/rpmbuild/RPMS
+
+      # ================================================================
+      # Phase 2: fastrpc
+      # ================================================================
+      - name: "Build: fastrpc"
+        run: |
+          dnf builddep -y ./fastrpc/fastrpc.spec
+          rpmbuild -ba --nodebuginfo ./fastrpc/fastrpc.spec
+          createrepo_c --update ~/rpmbuild/RPMS
+
+      # ================================================================
+      # Phase 3: libssc
+      # ================================================================
+      - name: "Build: libssc"
+        run: |
+          cp libssc/wait_for_qmi_service.patch ~/rpmbuild/SOURCES/
+          dnf builddep -y ./libssc/libssc.spec
+          rpmbuild -ba --nodebuginfo ./libssc/libssc.spec
+          createrepo_c --update ~/rpmbuild/RPMS
+
+      # ================================================================
+      # Phase 4: Packages depending on libssc
+      # ================================================================
+      - name: "Build: iio-sensor-proxy-sheng"
+        run: |
+          dnf install -y ~/rpmbuild/RPMS/*/libssc-*.rpm
+          dnf builddep -y ./iio-sensor-proxy/iio-sensor-proxy.spec
+          rpmbuild -ba --nodebuginfo ./iio-sensor-proxy/iio-sensor-proxy.spec
+          createrepo_c --update ~/rpmbuild/RPMS
+
+      - name: "Build: xiaomi-sheng-thp"
+        run: |
+          dnf install -y ~/rpmbuild/RPMS/*/libssc-*.rpm
+          dnf builddep -y ./xiaomi-sheng-thp/xiaomi-sheng-thp.spec
+          rpmbuild -ba --nodebuginfo ./xiaomi-sheng-thp/xiaomi-sheng-thp.spec
+          createrepo_c --update ~/rpmbuild/RPMS
+
+      - name: "Build: xiaomi-sheng-keyboard-helper"
+        run: |
+          dnf install -y ~/rpmbuild/RPMS/*/libssc-*.rpm
+          dnf builddep -y ./xiaomi-sheng-keyboard-helper/xiaomi-sheng-keyboard-helper.spec
+          rpmbuild -ba --nodebuginfo ./xiaomi-sheng-keyboard-helper/xiaomi-sheng-keyboard-helper.spec
+          createrepo_c --update ~/rpmbuild/RPMS
+
+      # ================================================================
+      # Phase 5: Independent compiled packages
+      # ================================================================
+      - name: "Build: sheng-devauth"
+        run: |
+          dnf builddep -y ./sheng-devauth/sheng-devauth.spec
+          rpmbuild -ba --nodebuginfo ./sheng-devauth/sheng-devauth.spec
+          createrepo_c --update ~/rpmbuild/RPMS
+
+      - name: "Build: xiaomi-pen-status"
+        run: |
+          dnf builddep -y ./xiaomi-pen-status/xiaomi-pen-status.spec
+          rpmbuild -ba --nodebuginfo ./xiaomi-pen-status/xiaomi-pen-status.spec
+          createrepo_c --update ~/rpmbuild/RPMS
+
+      # ================================================================
+      # Phase 6: xiaomi-sheng-fingerprint
+      # ================================================================
+      - name: "Build: xiaomi-sheng-fingerprint"
+        run: |
+          dnf builddep -y ./xiaomi-sheng-fingerprint/xiaomi-sheng-fingerprint.spec
+          rpmbuild -ba --nodebuginfo ./xiaomi-sheng-fingerprint/xiaomi-sheng-fingerprint.spec
+          createrepo_c --update ~/rpmbuild/RPMS
+
+      # ================================================================
+      # Phase 7: Kernel (last, heaviest, with ccache)
+      # ================================================================
+      - name: Restore ccache
+        uses: actions/cache@v6
+        with:
+          path: ~/.ccache
+          key: ccache-kernel-sm8550-${{ github.run_id }}
+          restore-keys: |
+            ccache-kernel-sm8550-
+
+      - name: "Build: kernel-sm8550"
+        run: |
+          mkdir -p ~/.ccache ~/rpmbuild/SOURCES/scripts
+          cp scripts/mkbootimg ~/rpmbuild/SOURCES/scripts/mkbootimg
+          dnf builddep -y ./kernel-sm8550/kernel-sm8550.spec
+          rpmbuild -ba --nodebuginfo ./kernel-sm8550/kernel-sm8550.spec
+          createrepo_c --update ~/rpmbuild/RPMS
+          echo "=== ccache stats ==="
+          ccache --show-stats
+
+      # ================================================================
+      # Upload
+      # ================================================================
+      - name: Upload RPMs
+        uses: actions/upload-artifact@v7
+        with:
+          name: sheng-rpms
+          path: ~/rpmbuild/RPMS/**/*.rpm
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Upload SRPMs
+        uses: actions/upload-artifact@v7
+        with:
+          name: sheng-srpms
+          path: ~/rpmbuild/SRPMS/**/*.src.rpm
+          retention-days: 14
+          if-no-files-found: error
+
+  # ==================================================================
+  # GitHub Release
+  # ==================================================================
+  main:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download RPMs
+        uses: actions/download-artifact@v8
+        with:
+          name: sheng-rpms
+          path: rpms
+
+      - name: Delete old main tag
+        run: |
+          gh main delete sheng-latest --yes --cleanup-tag 2>/dev/null || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Create Release
+        uses: softprops/action-gh-main@v1
+        with:
+          tag_name: sheng-latest
+          name: Sheng RPMs (latest)
+          files: rpms/**/*.rpm
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
