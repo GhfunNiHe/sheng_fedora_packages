@@ -3,9 +3,6 @@
 %global DEVICE_NAME sheng
 %global PLATFORM_NAME sm8550
 
-# Kernel will be built as: 7.1.5-sm8550-gXXXXXXXXX
-%global LOCALVERSION -%{PLATFORM_NAME}
-
 Version:         %{KERNEL_VER}.%{PLATFORM_NAME}
 Release:         1.%{DEVICE_NAME}%{?dist}
 ExclusiveArch:  aarch64
@@ -14,7 +11,6 @@ Summary:         Mainline Linux kernel for %{PLATFORM_NAME} devices
 License:         GPLv2
 URL:             https://github.com/ianchb/sm8550-mainline
 
-# Source0 kept for spectool compatibility; actual source fetched via git clone in %prep
 Source0:         %{url}/archive/sheng-%{KERNEL_VER}.tar.gz
 Source1:         https://github.com/ianchb/sm8550-mainline/releases/download/%{KERNEL_VER}/sm8550.config
 Source2:         scripts/mkbootimg
@@ -29,23 +25,24 @@ Provides:        kernel-modules-core  = %{version}-%{release}
 
 %description
 Mainline kernel for %{PLATFORM_NAME}, packaged for standard Fedora systems
-with UEFI boot support. Built from git to include the commit hash in the
-kernel version (e.g. %{KERNEL_VER}%{LOCALVERSION}-gXXXXXXXXX).
+with UEFI boot support. Built from source archive with commit hash resolved
+from the upstream tag (e.g. %{KERNEL_VER}-%{DEVICE_NAME}-gXXXXXXXXX).
 
 %prep
-git clone --branch sheng-%{KERNEL_VER} --depth 1 %{url}.git kernel
+%setup -q -n sm8550-mainline-sheng-%{KERNEL_VER}
 
-cd kernel
+# Resolve tag to commit hash without full clone
+COMMIT_HASH=$(git ls-remote %{url}.git refs/heads/sheng-%{KERNEL_VER} | awk '{print $1}' | cut -c1-12)
+echo "Branch sheng-%{KERNEL_VER} commit: ${COMMIT_HASH}"
+LOCALVERSION_FULL="-%{DEVICE_NAME}-g${COMMIT_HASH}"
+echo "${LOCALVERSION_FULL}" > localversion_custom
+
 cp %{SOURCE1} .config
 sed -i '/^CONFIG_LOCALVERSION=/d' .config
 sed -i 's/^CONFIG_LOCALVERSION_AUTO=y/CONFIG_LOCALVERSION_AUTO=n/' .config
 
 %build
-cd kernel
-
-# Append git hash to LOCALVERSION (no commit count)
-GIT_HASH=$(git rev-parse --short=12 HEAD)
-LOCALVERSION_FULL="%{LOCALVERSION}-g${GIT_HASH}"
+LOCALVERSION_FULL=$(cat localversion_custom)
 
 export CCACHE_DIR="${CCACHE_DIR:-$HOME/.ccache}"
 export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-10G}"
@@ -62,9 +59,7 @@ echo "%{KERNEL_VER}${LOCALVERSION_FULL}" > %{_topdir}/BUILD/kernel-version
 
 %install
 KERNEL_RELEASE=$(cat %{_topdir}/BUILD/kernel-version)
-GIT_HASH=$(cd kernel && git rev-parse --short=12 HEAD)
-LOCALVERSION_FULL="%{LOCALVERSION}-g${GIT_HASH}"
-cd kernel
+LOCALVERSION_FULL=$(cat localversion_custom)
 
 # 1. Install modules
 make ARCH=arm64 CC="ccache clang" LLVM=1 LOCALVERSION="${LOCALVERSION_FULL}" \
@@ -126,6 +121,17 @@ echo "${KERNEL_RELEASE}" > %{buildroot}/usr/lib/modules/.kernel-version
 /usr/lib/modules/*
 /usr/lib/modules/.kernel-version
 /boot/efi/EFI/BOOT/bootaa64.efi
+
+%pre
+# Clean up old kernel files from previous version on upgrade
+if [ -f /usr/lib/modules/.kernel-version ]; then
+    OLD_KVER=$(cat /usr/lib/modules/.kernel-version)
+    if [ -n "$OLD_KVER" ]; then
+        rm -rf "/usr/lib/modules/$OLD_KVER" 2>/dev/null || :
+        rm -f "/boot/System.map-$OLD_KVER" 2>/dev/null || :
+        rm -f "/boot/config-$OLD_KVER" 2>/dev/null || :
+    fi
+fi
 
 %posttrans
 KVER=$(cat /usr/lib/modules/.kernel-version 2>/dev/null)
