@@ -46,6 +46,7 @@ and proximity sensor access on Xiaomi Pad 6S Pro (SM8550).
 
 %post
 %systemd_post iio-sensor-proxy.service
+systemctl enable iio-sensor-proxy.service
 
 %preun
 %systemd_preun iio-sensor-proxy.service

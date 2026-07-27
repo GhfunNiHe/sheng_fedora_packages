@@ -35,6 +35,7 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix} LIBEXECDIR=%{_libexecdir}/xi
 
 %post
 %systemd_post xiaomi-sheng-thp.service
+systemctl enable xiaomi-sheng-thp.service
 
 %preun
 %systemd_preun xiaomi-sheng-thp.service

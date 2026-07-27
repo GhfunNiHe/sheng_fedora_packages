@@ -160,6 +160,7 @@ install -Dm644 udev/99-qcomtee-fpc.rules \
 %post
 %systemd_post sfsconfig.service
 %systemd_post qteesupplicant.service
+systemctl enable qteesupplicant.service
 if command -v udevadm >/dev/null 2>&1; then
     udevadm control --reload || :
     udevadm trigger --subsystem-match=tee || :

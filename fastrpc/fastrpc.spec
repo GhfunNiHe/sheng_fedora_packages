@@ -64,6 +64,7 @@ EOF
 
 %post
 %systemd_post adsprpcd-sensorspd.service
+systemctl enable adsprpcd-sensorspd.service
 
 %preun
 %systemd_preun adsprpcd-sensorspd.service

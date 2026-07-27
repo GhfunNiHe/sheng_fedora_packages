@@ -32,6 +32,7 @@ install -Dm644 xiaomi-charger-mode.service %{buildroot}%{_unitdir}/xiaomi-charge
 
 %post
 %systemd_post xiaomi-charger-mode.service
+systemctl enable xiaomi-charger-mode.service
 
 %preun
 %systemd_preun xiaomi-charger-mode.service

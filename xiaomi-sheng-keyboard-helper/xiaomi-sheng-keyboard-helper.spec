@@ -44,6 +44,7 @@ install -Dm644 udev/90-xiaomi-sheng-keyboard-helper.rules \
 
 %post
 %systemd_post xiaomi-sheng-keyboard-helper-angle.service
+systemctl enable xiaomi-sheng-keyboard-helper-angle.service
 if command -v udevadm >/dev/null 2>&1; then
     udevadm control --reload || :
 fi

@@ -55,6 +55,7 @@ EOF
 
 %post
 %systemd_post sheng-devauth.service
+systemctl enable sheng-devauth.service
 
 %preun
 %systemd_preun sheng-devauth.service
