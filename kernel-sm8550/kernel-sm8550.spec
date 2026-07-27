@@ -38,10 +38,6 @@ git clone --branch sheng-%{KERNEL_VER} --depth 1 %{url}.git kernel
 cd kernel
 cp %{SOURCE1} .config
 
-# Set the platform part of LOCALVERSION; git hash appended at build time
-sed -i '/^CONFIG_LOCALVERSION=/d' .config
-echo "CONFIG_LOCALVERSION=\"%{LOCALVERSION}\"" >> .config
-
 %build
 cd kernel
 
