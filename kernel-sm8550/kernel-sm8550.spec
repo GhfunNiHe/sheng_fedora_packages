@@ -37,6 +37,8 @@ git clone --branch sheng-%{KERNEL_VER} --depth 1 %{url}.git kernel
 
 cd kernel
 cp %{SOURCE1} .config
+sed -i '/^CONFIG_LOCALVERSION=/d' .config
+sed -i 's/^CONFIG_LOCALVERSION_AUTO=y/CONFIG_LOCALVERSION_AUTO=n/' .config
 
 %build
 cd kernel
@@ -122,6 +124,7 @@ echo "${KERNEL_RELEASE}" > %{buildroot}/usr/lib/modules/.kernel-version
 /boot/System.map-*
 /boot/config-*
 /usr/lib/modules/*
+/usr/lib/modules/.kernel-version
 /boot/efi/EFI/BOOT/bootaa64.efi
 
 %posttrans
