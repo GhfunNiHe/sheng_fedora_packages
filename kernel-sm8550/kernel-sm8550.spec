@@ -26,7 +26,7 @@ Provides:        kernel-modules-core  = %{version}-%{release}
 %description
 Mainline kernel for %{PLATFORM_NAME}, packaged for standard Fedora systems
 with UEFI boot support. Built from source archive with commit hash resolved
-from the upstream tag (e.g. %{KERNEL_VER}-%{DEVICE_NAME}-gXXXXXXXXX).
+from the upstream branch (e.g. %{KERNEL_VER}-%{PLATFORM_NAME}-gXXXXXXXXX).
 
 %prep
 %setup -q -n sm8550-mainline-sheng-%{KERNEL_VER}
@@ -34,15 +34,15 @@ from the upstream tag (e.g. %{KERNEL_VER}-%{DEVICE_NAME}-gXXXXXXXXX).
 # Resolve tag to commit hash without full clone
 COMMIT_HASH=$(git ls-remote %{url}.git refs/heads/sheng-%{KERNEL_VER} | awk '{print $1}' | cut -c1-12)
 echo "Branch sheng-%{KERNEL_VER} commit: ${COMMIT_HASH}"
-LOCALVERSION_FULL="-%{DEVICE_NAME}-g${COMMIT_HASH}"
-echo "${LOCALVERSION_FULL}" > localversion_custom
+LOCALVERSION_FULL="-%{PLATFORM_NAME}-g${COMMIT_HASH}"
+echo "${LOCALVERSION_FULL}" > .lkv_suffix
 
 cp %{SOURCE1} .config
 sed -i '/^CONFIG_LOCALVERSION=/d' .config
 sed -i 's/^CONFIG_LOCALVERSION_AUTO=y/CONFIG_LOCALVERSION_AUTO=n/' .config
 
 %build
-LOCALVERSION_FULL=$(cat localversion_custom)
+LOCALVERSION_FULL=$(cat .lkv_suffix)
 
 export CCACHE_DIR="${CCACHE_DIR:-$HOME/.ccache}"
 export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-10G}"
@@ -59,7 +59,7 @@ echo "%{KERNEL_VER}${LOCALVERSION_FULL}" > %{_topdir}/BUILD/kernel-version
 
 %install
 KERNEL_RELEASE=$(cat %{_topdir}/BUILD/kernel-version)
-LOCALVERSION_FULL=$(cat localversion_custom)
+LOCALVERSION_FULL=$(cat .lkv_suffix)
 
 # 1. Install modules
 make ARCH=arm64 CC="ccache clang" LLVM=1 LOCALVERSION="${LOCALVERSION_FULL}" \
