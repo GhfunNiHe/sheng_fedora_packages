@@ -32,7 +32,7 @@ from the upstream branch (e.g. %{KERNEL_VER}-%{PLATFORM_NAME}-gXXXXXXXXX).
 %setup -q -n sm8550-mainline-sheng-%{KERNEL_VER}
 
 # Resolve tag to commit hash without full clone
-COMMIT_HASH=$(git ls-remote %{url}.git refs/heads/sheng-%{KERNEL_VER} | awk '{print $1}' | cut -c1-12)
+COMMIT_HASH=$(git ls-remote %{url}.git refs/heads/sheng-%{KERNEL_VER} | awk '{print $1}' | cut -c1-7)
 echo "Branch sheng-%{KERNEL_VER} commit: ${COMMIT_HASH}"
 LOCALVERSION_FULL="-%{PLATFORM_NAME}-g${COMMIT_HASH}"
 echo "${LOCALVERSION_FULL}" > .lkv_suffix

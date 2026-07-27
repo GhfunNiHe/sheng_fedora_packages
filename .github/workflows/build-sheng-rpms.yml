@@ -215,7 +215,7 @@ jobs:
 
     steps:
       - name: Get short commit SHA
-        run: echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-12)" >> $GITHUB_ENV
+        run: echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
 
       - name: Download RPMs
         uses: actions/download-artifact@v8

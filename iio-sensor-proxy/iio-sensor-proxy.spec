@@ -3,6 +3,7 @@
 Name:           iio-sensor-proxy-sheng
 Version:        3.9
 Release:        1%{?dist}
+Provides:       iio-sensor-proxy = %{version}-%{release}
 Conflicts:      iio-sensor-proxy
 Summary:        IIO sensors to D-Bus proxy (with Qualcomm SSC support)
 License:        GPLv3
