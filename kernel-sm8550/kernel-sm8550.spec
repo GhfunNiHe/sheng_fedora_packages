@@ -3,7 +3,7 @@
 %global DEVICE_NAME sheng
 %global PLATFORM_NAME sm8550
 
-Version:         %{KERNEL_VER}.%{PLATFORM_NAME}
+Version:         %{KERNEL_VER}
 Release:         1.%{DEVICE_NAME}%{?dist}
 ExclusiveArch:  aarch64
 Name:            kernel-%{PLATFORM_NAME}

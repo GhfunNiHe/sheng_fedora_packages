@@ -214,6 +214,9 @@ jobs:
       contents: write
 
     steps:
+      - name: Get short commit SHA
+        run: echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-12)" >> $GITHUB_ENV
+
       - name: Download RPMs
         uses: actions/download-artifact@v8
         with:
@@ -230,8 +233,8 @@ jobs:
       - name: Create RPM Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: sheng-latest
-          name: Sheng RPMs (latest)
+          tag_name: sheng-${{ env.SHORT_SHA }}
+          name: Sheng RPMs (${{ env.SHORT_SHA }})
           files: rpms/**/*.rpm
           draft: false
         env:
@@ -240,8 +243,8 @@ jobs:
       - name: Create Boot Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: sheng-boot-latest
-          name: Sheng Boot Images (latest)
+          tag_name: sheng-boot-${{ env.SHORT_SHA }}
+          name: Sheng Boot Images (${{ env.SHORT_SHA }})
           files: images/**
           draft: false
         env:
