@@ -155,6 +155,7 @@ install -Dm644 udev/99-qcomtee-fpc.rules \
 %{_unitdir}/sfsconfig.service
 %{_unitdir}/fprintd.service.d/10-xiaomi-sheng-fpc1553.conf
 %{_udevrulesdir}/99-qcomtee-fpc.rules
+%doc README.md UPSTREAM_CHANGES.md
 
 %post
 %systemd_post sfsconfig.service

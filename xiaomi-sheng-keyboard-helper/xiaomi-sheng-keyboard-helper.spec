@@ -40,6 +40,7 @@ install -Dm644 udev/90-xiaomi-sheng-keyboard-helper.rules \
 %{_unitdir}/xiaomi-sheng-keyboard-helper-angle.service
 %{_userunitdir}/xiaomi-sheng-keyboard-helper-micmute.service
 %{_udevrulesdir}/90-xiaomi-sheng-keyboard-helper.rules
+%doc README.md
 
 %post
 %systemd_post xiaomi-sheng-keyboard-helper-angle.service
