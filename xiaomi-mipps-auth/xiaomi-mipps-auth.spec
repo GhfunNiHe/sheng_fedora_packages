@@ -38,4 +38,16 @@ if command -v udevadm >/dev/null 2>&1; then
     udevadm control --reload || :
 fi
 
+%preun
+%systemd_preun xiaomi-mipps-auth.service
+
+%postun
+%systemd_postun_with_restart xiaomi-mipps-auth.service
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload || :
+fi
+if command -v udevadm >/dev/null 2>&1; then
+    udevadm control --reload || :
+fi
+
 %changelog
