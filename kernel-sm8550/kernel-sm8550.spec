@@ -1,5 +1,5 @@
 %undefine        _debugsource_packages
-%global KERNEL_VER 7.1.5
+%global KERNEL_VER 7.1.8
 %global DEVICE_NAME sheng
 %global PLATFORM_NAME sm8550
 
@@ -14,6 +14,7 @@ URL:             https://github.com/ianchb/sm8550-mainline
 Source0:         %{url}/archive/sheng-%{KERNEL_VER}.tar.gz
 Source1:         https://github.com/ianchb/sm8550-mainline/releases/download/%{KERNEL_VER}/sm8550.config
 Source2:         scripts/mkbootimg
+Source3:         extra-sm8550.config
 
 BuildRequires:   bc bison dwarves diffutils elfutils-devel findutils git-core hmaccalc hostname make openssl-devel perl-interpreter rsync tar which flex bzip2 xz zstd python3 python3-devel python3-pyyaml rust rust-src bindgen rustfmt clippy opencsd-devel net-tools
 BuildRequires:   clang lld llvm ccache systemd-boot systemd-ukify
@@ -22,6 +23,8 @@ Provides:        kernel               = %{version}-%{release}
 Provides:        kernel-core          = %{version}-%{release}
 Provides:        kernel-modules       = %{version}-%{release}
 Provides:        kernel-modules-core  = %{version}-%{release}
+Requires:        dracut
+Requires:        systemd-ukify
 
 %description
 Mainline kernel for %{PLATFORM_NAME}, packaged for standard Fedora systems
@@ -40,6 +43,9 @@ echo "${LOCALVERSION_FULL}" > .lkv_suffix
 cp %{SOURCE1} .config
 sed -i '/^CONFIG_LOCALVERSION=/d' .config
 sed -i 's/^CONFIG_LOCALVERSION_AUTO=y/CONFIG_LOCALVERSION_AUTO=n/' .config
+
+# Append extra config (zswap support); make olddefconfig normalizes it
+cat %{SOURCE3} >> .config
 
 %build
 LOCALVERSION_FULL=$(cat .lkv_suffix)
@@ -72,6 +78,7 @@ mv %{buildroot}/lib %{buildroot}/usr/
 
 # 2. Install kernel image, System.map, and config to /boot
 install -Dm644 arch/arm64/boot/Image     %{buildroot}/boot/Image
+install -Dm644 arch/arm64/boot/Image     %{buildroot}/boot/vmlinuz-${KERNEL_RELEASE}
 install -Dm644 arch/arm64/boot/Image.gz  %{buildroot}/boot/Image.gz
 install -Dm644 System.map                %{buildroot}/boot/System.map-${KERNEL_RELEASE}
 install -Dm644 .config                   %{buildroot}/boot/config-${KERNEL_RELEASE}
@@ -79,6 +86,8 @@ install -Dm644 .config                   %{buildroot}/boot/config-${KERNEL_RELEA
 # 3. Install device tree
 install -Dm644 arch/arm64/boot/dts/qcom/sm8550-xiaomi-%{DEVICE_NAME}.dtb \
     %{buildroot}/boot/sm8550-xiaomi-%{DEVICE_NAME}.dtb
+install -Dm644 arch/arm64/boot/dts/qcom/sm8550-xiaomi-%{DEVICE_NAME}.dtb \
+    %{buildroot}/usr/lib/modules/${KERNEL_RELEASE}/dtb/qcom/sm8550-xiaomi-%{DEVICE_NAME}.dtb
 
 # 4. Generate boot.img (Debian-style: outside of kernel tree, image.gz + dtb first)
 cat arch/arm64/boot/Image.gz \
@@ -99,16 +108,8 @@ chmod +x %{SOURCE2}
     --tags_offset 0x01e00000 --pagesize 4096 --id \
     -o %{_topdir}/BUILD/boot_%{DEVICE_NAME}_singleboot.img
 
-# 5. Generate UKI EFI
-ukify build \
-    --linux=arch/arm64/boot/Image \
-    --devicetree=arch/arm64/boot/dts/qcom/sm8550-xiaomi-%{DEVICE_NAME}.dtb \
-    --cmdline="console=tty0 root=PARTLABEL=linux rootwait rw" \
-    --output=%{_topdir}/BUILD/bootaa64.efi
-install -Dm644 %{_topdir}/BUILD/bootaa64.efi \
-    %{buildroot}/boot/efi/EFI/BOOT/bootaa64.efi
-
-# 6. Save kernel version for %%posttrans
+# 5. Save kernel version for %%posttrans (UKI is generated on the device
+#    after install, see %posttrans)
 echo "${KERNEL_RELEASE}" > %{buildroot}/usr/lib/modules/.kernel-version
 
 %files
@@ -116,11 +117,11 @@ echo "${KERNEL_RELEASE}" > %{buildroot}/usr/lib/modules/.kernel-version
 /boot/Image.gz
 /boot/Image.gz-dtb_%{DEVICE_NAME}
 /boot/sm8550-xiaomi-%{DEVICE_NAME}.dtb
+/boot/vmlinuz-*
 /boot/System.map-*
 /boot/config-*
 /usr/lib/modules/*
 /usr/lib/modules/.kernel-version
-/boot/efi/EFI/BOOT/bootaa64.efi
 
 %pre
 # Clean up old kernel files from previous version on upgrade
@@ -130,18 +131,59 @@ if [ -f /usr/lib/modules/.kernel-version ]; then
         rm -rf "/usr/lib/modules/$OLD_KVER" 2>/dev/null || :
         rm -f "/boot/System.map-$OLD_KVER" 2>/dev/null || :
         rm -f "/boot/config-$OLD_KVER" 2>/dev/null || :
+        rm -f "/boot/vmlinuz-$OLD_KVER" 2>/dev/null || :
+        rm -f "/boot/initramfs-$OLD_KVER.img" 2>/dev/null || :
+        rm -f "/boot/efi/EFI/fedora/fedora-$OLD_KVER.efi" 2>/dev/null || :
     fi
 fi
 
 %posttrans
-KVER=$(cat /usr/lib/modules/.kernel-version 2>/dev/null)
-if [ -n "$KVER" ] && [ -d "/usr/lib/modules/$KVER" ]; then
-    depmod -a "$KVER"
-elif [ -d /usr/lib/modules ]; then
-    # Fallback: use the last module directory
-    for d in /usr/lib/modules/*/kernel; do
-        [ -d "$d" ] || continue
-        k=$(basename "$(dirname "$d")")
-        depmod -a "$k" 2>/dev/null || :
-    done
+set -e
+
+KERNEL_RELEASE=$(cat /usr/lib/modules/.kernel-version 2>/dev/null)
+if [ -z "$KERNEL_RELEASE" ]; then
+    echo "CRITICAL: kernel version file missing" >&2
+    exit 1
 fi
+
+# 1. Build module dependencies for the new kernel
+depmod -a "${KERNEL_RELEASE}"
+
+echo "--- Generating UKI for ${KERNEL_RELEASE} using dracut + ukify ---"
+
+UKI_DIR="/boot/efi/EFI/fedora"
+INITRD_PATH="/boot/initramfs-${KERNEL_RELEASE}.img"
+KERNEL_PATH="/boot/vmlinuz-${KERNEL_RELEASE}"
+DTB_PATH="/usr/lib/modules/${KERNEL_RELEASE}/dtb/qcom/sm8550-xiaomi-%{DEVICE_NAME}.dtb"
+UKI_OUTPUT_PATH="${UKI_DIR}/fedora-${KERNEL_RELEASE}.efi"
+mkdir -p "${UKI_DIR}"
+
+# 2. Generate initramfs with dracut (reads /etc/dracut.conf.d/)
+dracut --kver "${KERNEL_RELEASE}" --force
+if [ ! -f "${INITRD_PATH}" ]; then
+    echo "CRITICAL: dracut failed to generate initramfs at ${INITRD_PATH}" >&2
+    exit 1
+fi
+echo "Initramfs generated at ${INITRD_PATH}"
+
+# 3. Assemble the UKI with systemd-ukify. Static config (Cmdline/Stub) is read
+#    from /etc/systemd/ukify.conf; the explicit --cmdline acts as a device
+#    specific fallback so the image stays bootable without extra setup.
+ukify build \
+    --linux="${KERNEL_PATH}" \
+    --initrd="${INITRD_PATH}" \
+    --devicetree="${DTB_PATH}" \
+    --cmdline="console=tty0 root=PARTLABEL=linux rootwait rw" \
+    --output="${UKI_OUTPUT_PATH}"
+
+if [ ! -f "${UKI_OUTPUT_PATH}" ]; then
+    echo "CRITICAL: ukify failed to generate UKI at ${UKI_OUTPUT_PATH}" >&2
+    rm -f "${INITRD_PATH}"
+    exit 1
+fi
+echo "SUCCESS: UKI generated at ${UKI_OUTPUT_PATH}"
+
+# 4. Remove the standalone initramfs; only the UKI is kept
+rm -f "${INITRD_PATH}"
+
+echo "--- UKI generation complete for ${KERNEL_RELEASE} ---"
