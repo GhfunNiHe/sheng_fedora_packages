@@ -4,7 +4,7 @@
 %global PLATFORM_NAME sm8550
 
 Version:         %{KERNEL_VER}
-Release:         1.%{DEVICE_NAME}%{?dist}
+Release:         2.%{DEVICE_NAME}%{?dist}
 ExclusiveArch:  aarch64
 Name:            kernel-%{PLATFORM_NAME}
 Summary:         Mainline Linux kernel for %{PLATFORM_NAME} devices
@@ -15,6 +15,8 @@ Source0:         %{url}/archive/sheng-%{KERNEL_VER}.tar.gz
 Source1:         https://github.com/ianchb/sm8550-mainline/releases/download/%{KERNEL_VER}/sm8550.config
 Source2:         scripts/mkbootimg
 Source3:         extra-sm8550.config
+Source4:         ukify.conf
+Source5:         99-sheng-generic.conf
 
 BuildRequires:   bc bison dwarves diffutils elfutils-devel findutils git-core hmaccalc hostname make openssl-devel perl-interpreter rsync tar which flex bzip2 xz zstd python3 python3-devel python3-pyyaml rust rust-src bindgen rustfmt clippy opencsd-devel net-tools
 BuildRequires:   clang lld llvm ccache systemd-boot systemd-ukify
@@ -112,6 +114,10 @@ chmod +x %{SOURCE2}
 #    after install, see %posttrans)
 echo "${KERNEL_RELEASE}" > %{buildroot}/usr/lib/modules/.kernel-version
 
+# 6. Install UKI/dracut config (consumed by %posttrans)
+install -Dm644 %{SOURCE4} %{buildroot}%{_sysconfdir}/systemd/ukify.conf
+install -Dm644 %{SOURCE5} %{buildroot}%{_sysconfdir}/dracut.conf.d/99-sheng-generic.conf
+
 %files
 /boot/Image
 /boot/Image.gz
@@ -122,6 +128,8 @@ echo "${KERNEL_RELEASE}" > %{buildroot}/usr/lib/modules/.kernel-version
 /boot/config-*
 /usr/lib/modules/*
 /usr/lib/modules/.kernel-version
+%config(noreplace) %{_sysconfdir}/systemd/ukify.conf
+%config(noreplace) %{_sysconfdir}/dracut.conf.d/99-sheng-generic.conf
 
 %pre
 # Clean up old kernel files from previous version on upgrade
@@ -167,13 +175,11 @@ fi
 echo "Initramfs generated at ${INITRD_PATH}"
 
 # 3. Assemble the UKI with systemd-ukify. Static config (Cmdline/Stub) is read
-#    from /etc/systemd/ukify.conf; the explicit --cmdline acts as a device
-#    specific fallback so the image stays bootable without extra setup.
+#    from /etc/systemd/ukify.conf, which this package installs.
 ukify build \
     --linux="${KERNEL_PATH}" \
     --initrd="${INITRD_PATH}" \
     --devicetree="${DTB_PATH}" \
-    --cmdline="console=tty0 root=PARTLABEL=linux rootwait rw" \
     --output="${UKI_OUTPUT_PATH}"
 
 if [ ! -f "${UKI_OUTPUT_PATH}" ]; then
