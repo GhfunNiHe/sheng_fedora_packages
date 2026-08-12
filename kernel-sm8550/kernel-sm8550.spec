@@ -1,17 +1,19 @@
 %undefine        _debugsource_packages
-%global KERNEL_VER 7.1.8
+%global KERNEL_VER 7.2.0-rc7
+%global KERNEL_BRANCH sheng-7.2-rc7
+%global KERNEL_RPMVER 7.2.0
 %global DEVICE_NAME sheng
 %global PLATFORM_NAME sm8550
 
-Version:         %{KERNEL_VER}
-Release:         2.%{DEVICE_NAME}%{?dist}
+Version:         %{KERNEL_RPMVER}
+Release:         0.rc7.3.%{DEVICE_NAME}%{?dist}
 ExclusiveArch:  aarch64
 Name:            kernel-%{PLATFORM_NAME}
 Summary:         Mainline Linux kernel for %{PLATFORM_NAME} devices
 License:         GPLv2
 URL:             https://github.com/ianchb/sm8550-mainline
 
-Source0:         %{url}/archive/sheng-%{KERNEL_VER}.tar.gz
+Source0:         %{url}/archive/%{KERNEL_BRANCH}.tar.gz
 Source1:         https://github.com/ianchb/sm8550-mainline/releases/download/%{KERNEL_VER}/sm8550.config
 Source2:         scripts/mkbootimg
 Source3:         extra-sm8550.config
@@ -19,7 +21,7 @@ Source4:         ukify.conf
 Source5:         99-sheng-generic.conf
 
 BuildRequires:   bc bison dwarves diffutils elfutils-devel findutils git-core hmaccalc hostname make openssl-devel perl-interpreter rsync tar which flex bzip2 xz zstd python3 python3-devel python3-pyyaml rust rust-src bindgen rustfmt clippy opencsd-devel net-tools
-BuildRequires:   clang lld llvm ccache systemd-boot systemd-ukify
+BuildRequires:   clang lld llvm ccache systemd-boot-unsigned systemd-ukify
 
 Provides:        kernel               = %{version}-%{release}
 Provides:        kernel-core          = %{version}-%{release}
@@ -27,6 +29,7 @@ Provides:        kernel-modules       = %{version}-%{release}
 Provides:        kernel-modules-core  = %{version}-%{release}
 Requires:        dracut
 Requires:        systemd-ukify
+Requires:        systemd-boot-unsigned
 
 %description
 Mainline kernel for %{PLATFORM_NAME}, packaged for standard Fedora systems
@@ -34,11 +37,11 @@ with UEFI boot support. Built from source archive with commit hash resolved
 from the upstream branch (e.g. %{KERNEL_VER}-%{PLATFORM_NAME}-gXXXXXXXXX).
 
 %prep
-%setup -q -n sm8550-mainline-sheng-%{KERNEL_VER}
+%setup -q -n sm8550-mainline-%{KERNEL_BRANCH}
 
 # Resolve tag to commit hash without full clone
-COMMIT_HASH=$(git ls-remote %{url}.git refs/heads/sheng-%{KERNEL_VER} | awk '{print $1}' | cut -c1-7)
-echo "Branch sheng-%{KERNEL_VER} commit: ${COMMIT_HASH}"
+COMMIT_HASH=$(git ls-remote %{url}.git refs/heads/%{KERNEL_BRANCH} | awk '{print $1}' | cut -c1-7)
+echo "Branch %{KERNEL_BRANCH} commit: ${COMMIT_HASH}"
 LOCALVERSION_FULL="-%{PLATFORM_NAME}-g${COMMIT_HASH}"
 echo "${LOCALVERSION_FULL}" > .lkv_suffix
 
@@ -176,6 +179,10 @@ echo "Initramfs generated at ${INITRD_PATH}"
 
 # 3. Assemble the UKI with systemd-ukify. Static config (Cmdline/Stub) is read
 #    from /etc/systemd/ukify.conf, which this package installs.
+if [ ! -f /usr/lib/systemd/boot/efi/linuxaa64.efi.stub ]; then
+    echo "CRITICAL: EFI stub /usr/lib/systemd/boot/efi/linuxaa64.efi.stub missing (install systemd-boot-unsigned)" >&2
+    exit 1
+fi
 ukify build \
     --linux="${KERNEL_PATH}" \
     --initrd="${INITRD_PATH}" \
