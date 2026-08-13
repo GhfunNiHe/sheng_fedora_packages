@@ -157,8 +157,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.ccache
-          key: ccache-kernel-sm8550-${{ github.run_id }}
+          key: ccache-kernel-sm8550-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('kernel-sm8550/kernel-sm8550.spec', 'kernel-sm8550/extra-sm8550.config', 'kernel-sm8550/99-sheng-generic.conf') }}
           restore-keys: |
+            ccache-kernel-sm8550-${{ runner.os }}-${{ runner.arch }}-
             ccache-kernel-sm8550-
 
       - name: "Build: kernel-sm8550"
