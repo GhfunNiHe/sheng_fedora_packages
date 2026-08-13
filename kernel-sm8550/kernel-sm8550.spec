@@ -1,19 +1,19 @@
 %undefine        _debugsource_packages
-%global KERNEL_VER 7.2.0-rc7
-%global KERNEL_BRANCH sheng-7.2-rc7
+%global KERNEL_VER 7.2.0-rc7-1
+%global KERNEL_TAG 7.2.0-rc7-1
 %global KERNEL_RPMVER 7.2.0
 %global DEVICE_NAME sheng
 %global PLATFORM_NAME sm8550
 
 Version:         %{KERNEL_RPMVER}
-Release:         0.rc7.3.%{DEVICE_NAME}%{?dist}
+Release:         0.rc7.4.%{DEVICE_NAME}%{?dist}
 ExclusiveArch:  aarch64
 Name:            kernel-%{PLATFORM_NAME}
 Summary:         Mainline Linux kernel for %{PLATFORM_NAME} devices
 License:         GPLv2
 URL:             https://github.com/ianchb/sm8550-mainline
 
-Source0:         %{url}/archive/%{KERNEL_BRANCH}.tar.gz
+Source0:         %{url}/archive/%{KERNEL_TAG}.tar.gz
 Source1:         https://github.com/ianchb/sm8550-mainline/releases/download/%{KERNEL_VER}/sm8550.config
 Source2:         scripts/mkbootimg
 Source3:         extra-sm8550.config
@@ -34,14 +34,14 @@ Requires:        systemd-boot-unsigned
 %description
 Mainline kernel for %{PLATFORM_NAME}, packaged for standard Fedora systems
 with UEFI boot support. Built from source archive with commit hash resolved
-from the upstream branch (e.g. %{KERNEL_VER}-%{PLATFORM_NAME}-gXXXXXXXXX).
+from the upstream tag (e.g. %{KERNEL_VER}-%{PLATFORM_NAME}-gXXXXXXXXX).
 
 %prep
-%setup -q -n sm8550-mainline-%{KERNEL_BRANCH}
+%setup -q -n sm8550-mainline-%{KERNEL_TAG}
 
 # Resolve tag to commit hash without full clone
-COMMIT_HASH=$(git ls-remote %{url}.git refs/heads/%{KERNEL_BRANCH} | awk '{print $1}' | cut -c1-7)
-echo "Branch %{KERNEL_BRANCH} commit: ${COMMIT_HASH}"
+COMMIT_HASH=$(git ls-remote %{url}.git refs/tags/%{KERNEL_TAG} | awk '{print $1}' | cut -c1-7)
+echo "Tag %{KERNEL_TAG} commit: ${COMMIT_HASH}"
 LOCALVERSION_FULL="-%{PLATFORM_NAME}-g${COMMIT_HASH}"
 echo "${LOCALVERSION_FULL}" > .lkv_suffix
 
