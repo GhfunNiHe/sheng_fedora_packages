@@ -1,12 +1,12 @@
 %undefine        _debugsource_packages
-%global KERNEL_VER 7.2.0-rc7-1
-%global KERNEL_TAG 7.2.0-rc7-1
+%global KERNEL_VER 7.2.0
+%global KERNEL_TAG 7.2.0
 %global KERNEL_RPMVER 7.2.0
 %global DEVICE_NAME sheng
 %global PLATFORM_NAME sm8550
 
 Version:         %{KERNEL_RPMVER}
-Release:         0.rc7.4.%{DEVICE_NAME}%{?dist}
+Release:         1.%{DEVICE_NAME}%{?dist}
 ExclusiveArch:  aarch64
 Name:            kernel-%{PLATFORM_NAME}
 Summary:         Mainline Linux kernel for %{PLATFORM_NAME} devices
