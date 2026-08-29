@@ -225,12 +225,6 @@ jobs:
           name: sheng-rpms
           path: rpms
 
-      - name: Download SRPMs
-        uses: actions/download-artifact@v8
-        with:
-          name: sheng-srpms
-          path: srpms
-
       - name: Download images
         uses: actions/download-artifact@v8
         with:
@@ -245,7 +239,6 @@ jobs:
           name: Sheng Packages (${{ env.SHORT_SHA }})
           files: |
             rpms/**/*.rpm
-            srpms/**/*.src.rpm
             images/**
           draft: false
         env:
