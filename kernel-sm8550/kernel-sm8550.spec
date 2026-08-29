@@ -6,7 +6,7 @@
 %global PLATFORM_NAME sm8550
 
 Version:         %{KERNEL_RPMVER}
-Release:         1.%{DEVICE_NAME}%{?dist}
+Release:         2.%{DEVICE_NAME}%{?dist}
 ExclusiveArch:  aarch64
 Name:            kernel-%{PLATFORM_NAME}
 Summary:         Mainline Linux kernel for %{PLATFORM_NAME} devices
@@ -81,16 +81,18 @@ rm -rf %{buildroot}/lib/modules/*/source
 mkdir -p %{buildroot}/usr
 mv %{buildroot}/lib %{buildroot}/usr/
 
-# 2. Install kernel image, System.map, and config to /boot
-install -Dm644 arch/arm64/boot/Image     %{buildroot}/boot/Image
+# 2. Install kernel image, System.map, and config to /boot. These are
+#    versioned so multiple kernel versions can coexist; booting happens via
+#    the flashed boot.img, not these /boot files.
+install -Dm644 arch/arm64/boot/Image     %{buildroot}/boot/Image-${KERNEL_RELEASE}
 install -Dm644 arch/arm64/boot/Image     %{buildroot}/boot/vmlinuz-${KERNEL_RELEASE}
-install -Dm644 arch/arm64/boot/Image.gz  %{buildroot}/boot/Image.gz
+install -Dm644 arch/arm64/boot/Image.gz  %{buildroot}/boot/Image.gz-${KERNEL_RELEASE}
 install -Dm644 System.map                %{buildroot}/boot/System.map-${KERNEL_RELEASE}
 install -Dm644 .config                   %{buildroot}/boot/config-${KERNEL_RELEASE}
 
 # 3. Install device tree
 install -Dm644 arch/arm64/boot/dts/qcom/sm8550-xiaomi-%{DEVICE_NAME}.dtb \
-    %{buildroot}/boot/sm8550-xiaomi-%{DEVICE_NAME}.dtb
+    %{buildroot}/boot/sm8550-xiaomi-%{DEVICE_NAME}-${KERNEL_RELEASE}.dtb
 install -Dm644 arch/arm64/boot/dts/qcom/sm8550-xiaomi-%{DEVICE_NAME}.dtb \
     %{buildroot}/usr/lib/modules/${KERNEL_RELEASE}/dtb/qcom/sm8550-xiaomi-%{DEVICE_NAME}.dtb
 
@@ -98,7 +100,8 @@ install -Dm644 arch/arm64/boot/dts/qcom/sm8550-xiaomi-%{DEVICE_NAME}.dtb \
 cat arch/arm64/boot/Image.gz \
     arch/arm64/boot/dts/qcom/sm8550-xiaomi-%{DEVICE_NAME}.dtb \
     > Image.gz-dtb_%{DEVICE_NAME}
-install -Dm644 Image.gz-dtb_%{DEVICE_NAME} %{buildroot}/boot/Image.gz-dtb_%{DEVICE_NAME}
+install -Dm644 Image.gz-dtb_%{DEVICE_NAME} \
+    %{buildroot}/boot/Image.gz-dtb_%{DEVICE_NAME}-${KERNEL_RELEASE}
 mv Image.gz-dtb_%{DEVICE_NAME} zImage_%{DEVICE_NAME}
 
 chmod +x %{SOURCE2}
@@ -113,24 +116,19 @@ chmod +x %{SOURCE2}
     --tags_offset 0x01e00000 --pagesize 4096 --id \
     -o %{_topdir}/BUILD/boot_%{DEVICE_NAME}_singleboot.img
 
-# 5. Save kernel version for %%posttrans (UKI is generated on the device
-#    after install, see %posttrans)
-echo "${KERNEL_RELEASE}" > %{buildroot}/usr/lib/modules/.kernel-version
-
 # 6. Install UKI/dracut config (consumed by %posttrans)
 install -Dm644 %{SOURCE4} %{buildroot}%{_sysconfdir}/systemd/ukify.conf
 install -Dm644 %{SOURCE5} %{buildroot}%{_sysconfdir}/dracut.conf.d/99-sheng-generic.conf
 
 %files
-/boot/Image
-/boot/Image.gz
-/boot/Image.gz-dtb_%{DEVICE_NAME}
-/boot/sm8550-xiaomi-%{DEVICE_NAME}.dtb
+/boot/Image-*
+/boot/Image.gz-*
+/boot/Image.gz-dtb_%{DEVICE_NAME}-*
+/boot/sm8550-xiaomi-%{DEVICE_NAME}-*.dtb
 /boot/vmlinuz-*
 /boot/System.map-*
 /boot/config-*
 /usr/lib/modules/*
-/usr/lib/modules/.kernel-version
 %config(noreplace) %{_sysconfdir}/systemd/ukify.conf
 %config(noreplace) %{_sysconfdir}/dracut.conf.d/99-sheng-generic.conf
 
@@ -145,17 +143,26 @@ if [ -f /usr/lib/modules/.kernel-version ]; then
         rm -f "/boot/vmlinuz-$OLD_KVER" 2>/dev/null || :
         rm -f "/boot/initramfs-$OLD_KVER.img" 2>/dev/null || :
         rm -f "/boot/efi/EFI/fedora/fedora-$OLD_KVER.efi" 2>/dev/null || :
+        rm -f "/boot/Image-$OLD_KVER" 2>/dev/null || :
+        rm -f "/boot/Image.gz-$OLD_KVER" 2>/dev/null || :
+        rm -f "/boot/Image.gz-dtb_%{DEVICE_NAME}-$OLD_KVER" 2>/dev/null || :
+        rm -f "/boot/sm8550-xiaomi-%{DEVICE_NAME}-$OLD_KVER.dtb" 2>/dev/null || :
     fi
 fi
 
 %posttrans
 set -e
 
-KERNEL_RELEASE=$(cat /usr/lib/modules/.kernel-version 2>/dev/null)
+# Determine the newly installed kernel version from the modules directory.
+# %pre removed the previous kernel's modules, so the newest (and only) left
+# is this package's own. .kernel-version is intentionally not in %files so
+# multiple kernel versions do not claim the same file.
+KERNEL_RELEASE=$(ls -dt /usr/lib/modules/*/ 2>/dev/null | head -1 | sed 's#/$##; s#.*/##')
 if [ -z "$KERNEL_RELEASE" ]; then
-    echo "CRITICAL: kernel version file missing" >&2
+    echo "CRITICAL: no kernel modules directory found" >&2
     exit 1
 fi
+echo "${KERNEL_RELEASE}" > /usr/lib/modules/.kernel-version
 
 # 1. Build module dependencies for the new kernel
 depmod -a "${KERNEL_RELEASE}"
