@@ -2,7 +2,7 @@
 
 Name:           xiaomi-sheng-keyboard-helper
 Version:        0.2.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Keyboard cover helper for Xiaomi Pad 6S Pro
 License:        Apache-2.0
 URL:            https://github.com/ianchb/xiaomi-sheng-keyboard-helper
@@ -32,6 +32,11 @@ install -Dm644 systemd/xiaomi-sheng-keyboard-helper-angle.service \
     %{buildroot}%{_unitdir}/xiaomi-sheng-keyboard-helper-angle.service
 install -Dm644 systemd-user/xiaomi-sheng-keyboard-helper-micmute.service \
     %{buildroot}%{_userunitdir}/xiaomi-sheng-keyboard-helper-micmute.service
+# Force English locale for pactl subprocesses: get-source-mute and subscribe
+# output are localized (e.g. "Mute: 否"), which the helper cannot parse and
+# leaves the mic-mute LED unsynchronized.
+sed -i '/^\[Service\]/a Environment=LC_ALL=C LANG=C' \
+    %{buildroot}%{_userunitdir}/xiaomi-sheng-keyboard-helper-micmute.service
 install -Dm644 udev/90-xiaomi-sheng-keyboard-helper.rules \
     %{buildroot}%{_udevrulesdir}/90-xiaomi-sheng-keyboard-helper.rules
 
@@ -56,3 +61,6 @@ fi
 %systemd_postun_with_restart xiaomi-sheng-keyboard-helper-angle.service
 
 %changelog
+* Tue Aug 24 2026 xiaomi <GhfunNiHe@bbcctv520@petalmail.com> - 0.2.0-2
+- Fix mic-mute LED not updating under non-English locales by forcing
+  LC_ALL=C on the micmute user service (pactl output localization).

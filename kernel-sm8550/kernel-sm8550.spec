@@ -1,7 +1,7 @@
 %undefine        _debugsource_packages
-%global KERNEL_VER 7.2.0
-%global KERNEL_TAG 7.2.0
-%global KERNEL_RPMVER 7.2.0
+%global KERNEL_VER 7.2.2
+%global KERNEL_TAG 7.2.2
+%global KERNEL_RPMVER 7.2.2
 %global DEVICE_NAME sheng
 %global PLATFORM_NAME sm8550
 

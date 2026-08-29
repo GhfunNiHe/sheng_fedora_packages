@@ -225,6 +225,12 @@ jobs:
           name: sheng-rpms
           path: rpms
 
+      - name: Download SRPMs
+        uses: actions/download-artifact@v8
+        with:
+          name: sheng-srpms
+          path: srpms
+
       - name: Download images
         uses: actions/download-artifact@v8
         with:
@@ -232,22 +238,15 @@ jobs:
           path: images
         continue-on-error: true
 
-      - name: Create RPM Release
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: sheng-${{ env.SHORT_SHA }}
-          name: Sheng RPMs (${{ env.SHORT_SHA }})
-          files: rpms/**/*.rpm
-          draft: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create Boot Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: sheng-boot-${{ env.SHORT_SHA }}
-          name: Sheng Boot Images (${{ env.SHORT_SHA }})
-          files: images/**
+          name: Sheng Packages (${{ env.SHORT_SHA }})
+          files: |
+            rpms/**/*.rpm
+            srpms/**/*.src.rpm
+            images/**
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
