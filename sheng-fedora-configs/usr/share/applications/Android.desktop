@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Android
+Comment=Switch to Android slot and reboot
+Exec=pkexec /usr/bin/sta
+Icon=android
+Terminal=false
+Categories=System;
+StartupNotify=false

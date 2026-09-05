@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ORIGINAL_ARGS=("$@")
+
+if [ "$(id -u)" -ne 0 ]; then
+    if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+        exec sudo "$0" "${ORIGINAL_ARGS[@]}"
+    fi
+    if command -v pkexec >/dev/null 2>&1 && [ -z "${STA_NO_PKEXEC:-}" ]; then
+        exec pkexec "$0" "${ORIGINAL_ARGS[@]}"
+    fi
+    exec sudo "$0" "${ORIGINAL_ARGS[@]}"
+fi
+
+dry_run=0
+if [ "${1:-}" = "--dry-run" ]; then
+    dry_run=1
+    shift
+fi
+
+if [ $# -ne 0 ]; then
+    echo "错误: 用法: sta [--dry-run] / Error: usage: sta [--dry-run]" >&2
+    exit 1
+fi
+
+if ! command -v qbootctl >/dev/null 2>&1; then
+    echo "错误: 缺少 qbootctl / Error: qbootctl is missing" >&2
+    exit 1
+fi
+
+active_slot=$(qbootctl -a 2>/dev/null | sed -n 's/^Active slot: _\([ab]\)$/\1/p' | head -n 1)
+if [ -z "$active_slot" ]; then
+    active_slot=$(qbootctl -c 2>/dev/null | sed -n 's/^Current slot: _\([ab]\)$/\1/p' | head -n 1)
+fi
+
+case "$active_slot" in
+    a) target_slot=b ;;
+    b) target_slot=a ;;
+    *)
+        echo "错误: 无法识别当前启动插槽 / Error: failed to detect current boot slot" >&2
+        exit 1
+        ;;
+esac
+
+if [ "$dry_run" -eq 1 ]; then
+    printf 'Current slot: _%s\nTarget slot: _%s\n' "$active_slot" "$target_slot"
+    exit 0
+fi
+
+qbootctl -s "$target_slot"
+systemctl reboot

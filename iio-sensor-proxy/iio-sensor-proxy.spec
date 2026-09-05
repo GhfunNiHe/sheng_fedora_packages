@@ -9,6 +9,7 @@ Summary:        IIO sensors to D-Bus proxy (with Qualcomm SSC support)
 License:        GPLv3
 URL:            https://gitlab.freedesktop.org/hadess/iio-sensor-proxy
 Source0:        %{url}/-/archive/%{version}/iio-sensor-proxy-%{version}.tar.gz
+Source1:        49-iio-sensor-proxy.rules
 ExclusiveArch:  aarch64
 BuildRequires:  gcc meson ninja-build
 BuildRequires:  glib2-devel libgudev-devel polkit-devel
@@ -35,6 +36,7 @@ and proximity sensor access on Xiaomi Pad 6S Pro (SM8550).
 
 %install
 %meson_install
+install -Dm644 %{SOURCE1} %{buildroot}%{_datadir}/polkit-1/rules.d/49-iio-sensor-proxy.rules
 
 %files
 %{_bindir}/monitor-sensor
@@ -43,6 +45,7 @@ and proximity sensor access on Xiaomi Pad 6S Pro (SM8550).
 %{_udevrulesdir}/80-iio-sensor-proxy.rules
 %{_datadir}/dbus-1/system.d/net.hadess.SensorProxy.conf
 %{_datadir}/polkit-1/actions/net.hadess.SensorProxy.policy
+%{_datadir}/polkit-1/rules.d/49-iio-sensor-proxy.rules
 
 %post
 %systemd_post iio-sensor-proxy.service

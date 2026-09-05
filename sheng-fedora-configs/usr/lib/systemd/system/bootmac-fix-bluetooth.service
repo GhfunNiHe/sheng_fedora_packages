@@ -1,0 +1,13 @@
+[Unit]
+Description=Set Xiaomi Pad 6S Pro Bluetooth MAC address
+Wants=bluetooth.service
+After=bluetooth.service
+ConditionPathExists=/usr/bin/btmgmt
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/bootmac-fix bluetooth hci0
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

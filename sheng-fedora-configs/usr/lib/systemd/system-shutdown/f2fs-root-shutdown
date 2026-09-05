@@ -1,0 +1,19 @@
+#!/bin/sh
+case "$1" in
+    reboot|poweroff|halt|kexec)
+        f2fs_io=
+        if [ -x /usr/bin/f2fs_io ]; then
+            f2fs_io=/usr/bin/f2fs_io
+        elif [ -x /oldroot/usr/bin/f2fs_io ]; then
+            f2fs_io=/oldroot/usr/bin/f2fs_io
+        fi
+        [ -n "$f2fs_io" ] || exit 0
+
+        for mountpoint in /oldroot /; do
+            if grep -qs " $mountpoint f2fs " /proc/mounts; then
+                "$f2fs_io" shutdown 0 "$mountpoint" >/dev/kmsg 2>&1 || true
+                exit 0
+            fi
+        done
+        ;;
+esac

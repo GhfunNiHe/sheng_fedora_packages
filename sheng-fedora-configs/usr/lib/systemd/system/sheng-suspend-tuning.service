@@ -1,0 +1,13 @@
+[Unit]
+Description=Tune Xiaomi Pad 6S Pro suspend and wakeup sources
+DefaultDependencies=no
+After=sysinit.target
+Before=sleep.target suspend.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/sheng-suspend-tuning
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

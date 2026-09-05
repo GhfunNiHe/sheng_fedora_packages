@@ -1,0 +1,14 @@
+[Unit]
+Description=Set Xiaomi Pad 6S Pro WLAN MAC address
+Wants=sys-subsystem-net-devices-wlp1s0.device
+After=sys-subsystem-net-devices-wlp1s0.device
+Before=NetworkManager.service
+ConditionPathExists=/usr/sbin/ip
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/bootmac-fix wlan wlp1s0
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

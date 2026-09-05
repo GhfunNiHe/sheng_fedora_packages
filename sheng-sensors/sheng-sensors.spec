@@ -29,6 +29,7 @@ cp -a usr/* %{buildroot}%{_prefix}/
 %{_datadir}/qcom/conf.d
 %{_datadir}/qcom/sm8550
 %{_prefix}/lib/udev/rules.d/81-sheng-ssc-sensors.rules
+%{_prefix}/lib/udev/rules.d/99-touchscreen-sheng.rules
 %{_prefix}/lib/systemd/system/iio-sensor-proxy.service.d/10-sheng-sensors.conf
 
 %post

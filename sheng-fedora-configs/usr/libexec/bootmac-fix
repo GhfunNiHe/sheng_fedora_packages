@@ -1,0 +1,119 @@
+#!/bin/sh
+set -eu
+
+usage() {
+    echo "错误: 用法: bootmac-fix bluetooth|wlan|print-bluetooth|print-wlan [interface] / Error: usage: bootmac-fix bluetooth|wlan|print-bluetooth|print-wlan [interface]" >&2
+    exit 1
+}
+
+get_seed() {
+    seed=$(tr ' ' '\n' < /proc/cmdline | sed -n 's/^androidboot\.serialno=//p' | head -n 1)
+    if [ -z "$seed" ] && [ -r /etc/machine-id ]; then
+        seed=$(cat /etc/machine-id)
+    fi
+    if [ -z "$seed" ]; then
+        echo "错误: 未找到可用于生成 MAC 地址的设备标识 / Error: no device identifier available for MAC generation" >&2
+        exit 1
+    fi
+    printf '%s' "$seed"
+}
+
+generate_mac() {
+    seed=$1
+    label=$2
+    digest=$(printf '%s-%s' "$seed" "$label" | sha256sum | awk '{print $1}')
+    printf '02:00:%s:%s:%s:%s\n' \
+        "$(printf '%s' "$digest" | cut -c1-2)" \
+        "$(printf '%s' "$digest" | cut -c3-4)" \
+        "$(printf '%s' "$digest" | cut -c5-6)" \
+        "$(printf '%s' "$digest" | cut -c7-8)"
+}
+
+set_bluetooth_mac() {
+    iface=${1:-hci0}
+    mac=$2
+    timeout=0
+    restart_bluetooth=0
+
+    if ! command -v btmgmt >/dev/null 2>&1; then
+        echo "错误: 缺少 btmgmt / Error: btmgmt is missing" >&2
+        exit 1
+    fi
+
+    if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet bluetooth.service; then
+        sleep 5
+        systemctl stop bluetooth.service
+        restart_bluetooth=1
+    fi
+
+    while ! btmgmt -i "$iface" info >/dev/null 2>&1; do
+        if [ "$timeout" -ge 60 ]; then
+            echo "错误: 未找到蓝牙控制器 $iface / Error: Bluetooth controller $iface was not found" >&2
+            exit 1
+        fi
+        sleep 1
+        timeout=$((timeout + 1))
+    done
+
+    timeout=0
+    while ! dmesg 2>/dev/null | grep -q "Bluetooth: $iface: QCA setup on UART is completed"; do
+        if [ "$timeout" -ge 60 ]; then
+            echo "错误: 蓝牙控制器 $iface 初始化未完成 / Error: Bluetooth controller $iface setup did not complete" >&2
+            exit 1
+        fi
+        sleep 1
+        timeout=$((timeout + 1))
+    done
+
+    timeout=0
+    while ! printf 'yes\n' | btmgmt -i "$iface" public-addr "$mac" >/dev/null 2>&1; do
+        if [ "$timeout" -ge 60 ]; then
+            echo "错误: 设置蓝牙 MAC 地址失败 / Error: failed to set Bluetooth MAC address" >&2
+            exit 1
+        fi
+        sleep 1
+        timeout=$((timeout + 1))
+    done
+
+    if [ "$restart_bluetooth" -eq 1 ]; then
+        systemctl start bluetooth.service
+    fi
+}
+
+set_wlan_mac() {
+    iface=${1:-wlp1s0}
+    mac=$2
+
+    if ! ip link show "$iface" >/dev/null 2>&1; then
+        echo "错误: 未找到无线网卡 $iface / Error: WLAN interface $iface was not found" >&2
+        exit 1
+    fi
+
+    ip link set dev "$iface" down
+    ip link set dev "$iface" address "$mac"
+    ip link set dev "$iface" up
+}
+
+[ $# -ge 1 ] && [ $# -le 2 ] || usage
+
+mode=$1
+iface=${2:-}
+seed=$(get_seed)
+
+case "$mode" in
+    bluetooth)
+        set_bluetooth_mac "${iface:-hci0}" "$(generate_mac "$seed" BT)"
+        ;;
+    wlan)
+        set_wlan_mac "${iface:-wlp1s0}" "$(generate_mac "$seed" WLAN)"
+        ;;
+    print-bluetooth)
+        generate_mac "$seed" BT
+        ;;
+    print-wlan)
+        generate_mac "$seed" WLAN
+        ;;
+    *)
+        usage
+        ;;
+esac

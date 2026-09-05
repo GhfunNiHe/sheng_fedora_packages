@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CARD=0
+ROUTE_NUMID=277
+VOLUME_CONTROL="stream0.vol_ctrl0 MultiMedia1 Playback Volu"
+
+for _ in $(seq 1 30); do
+    if amixer -c "$CARD" cget numid="$ROUTE_NUMID" >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+
+amixer -c "$CARD" cset numid="$ROUTE_NUMID" 1
+amixer -c "$CARD" sset "$VOLUME_CONTROL" 80% || true
+alsactl store "$CARD" || true

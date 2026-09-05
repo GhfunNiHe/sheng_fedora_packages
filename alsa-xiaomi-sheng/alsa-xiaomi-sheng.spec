@@ -25,9 +25,12 @@ CS35L43 speaker amplifiers).
 %install
 mkdir -p %{buildroot}%{_datadir}/alsa/ucm2/Xiaomi/sheng
 cp -a usr/share/alsa/ucm2/Xiaomi/sheng/* %{buildroot}%{_datadir}/alsa/ucm2/Xiaomi/sheng/
+install -Dm644 etc/modprobe.d/99-sheng-alsa-no-snd-seq.conf \
+    %{buildroot}%{_sysconfdir}/modprobe.d/99-sheng-alsa-no-snd-seq.conf
 
 %files
 %defattr(644, root, root, 755)
 %{_datadir}/alsa/ucm2/Xiaomi/sheng
+%config(noreplace) %{_sysconfdir}/modprobe.d/99-sheng-alsa-no-snd-seq.conf
 
 %changelog

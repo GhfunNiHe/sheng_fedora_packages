@@ -46,7 +46,7 @@ jobs:
             fi
           done
           # Create tarballs for specs with local files (no external Source0)
-          for dir in alsa-xiaomi-sheng sheng-sensors; do
+          for dir in alsa-xiaomi-sheng sheng-sensors sheng-fedora-configs; do
             name=$(rpmspec -q --queryformat "%{NAME}-%{VERSION}" "$dir/$dir.spec")
             tmpdir=$(mktemp -d)
             cp -r "$dir"/usr "$dir"/etc "$tmpdir/" 2>/dev/null || true
@@ -83,14 +83,16 @@ jobs:
       - name: "Build: sheng-sensors"
         run: rpmbuild -ba --nodebuginfo ./sheng-sensors/sheng-sensors.spec && createrepo_c --update ~/rpmbuild/RPMS
 
+      - name: "Build: sheng-fedora-configs"
+        run: rpmbuild -ba --nodebuginfo ./sheng-fedora-configs/sheng-fedora-configs.spec && createrepo_c --update ~/rpmbuild/RPMS
+
       # ================================================================
-      # Phase 2: hexagonrpc (replaces the retired fastrpc daemon)
-      # fastrpc build is disabled/retired; see fastrpc/fastrpc.spec.
+      # Phase 2: fastrpc
       # ================================================================
-      - name: "Build: hexagonrpc"
+      - name: "Build: fastrpc"
         run: |
-          dnf builddep -y ./hexagonrpc/hexagonrpc.spec
-          rpmbuild -ba --nodebuginfo ./hexagonrpc/hexagonrpc.spec
+          dnf builddep -y ./fastrpc/fastrpc.spec
+          rpmbuild -ba --nodebuginfo ./fastrpc/fastrpc.spec
           createrepo_c --update ~/rpmbuild/RPMS
 
       # ================================================================
@@ -109,6 +111,7 @@ jobs:
       - name: "Build: iio-sensor-proxy-sheng"
         run: |
           dnf install -y ~/rpmbuild/RPMS/*/libssc-*.rpm
+          cp iio-sensor-proxy/49-iio-sensor-proxy.rules ~/rpmbuild/SOURCES/
           dnf builddep -y ./iio-sensor-proxy/iio-sensor-proxy.spec
           rpmbuild -ba --nodebuginfo ./iio-sensor-proxy/iio-sensor-proxy.spec
           createrepo_c --update ~/rpmbuild/RPMS

@@ -1,0 +1,20 @@
+#!/bin/bash
+set -e
+
+if grep -qw s2idle /sys/power/mem_sleep 2>/dev/null; then
+    printf "s2idle\n" > /sys/power/mem_sleep
+fi
+
+for wakeup in \
+    /sys/devices/platform/pmic-glink/pmic_glink.power-supply.0/power_supply/qcom-battmgr-bat/power/wakeup \
+    /sys/devices/platform/pmic-glink/pmic_glink.power-supply.0/power_supply/qcom-battmgr-usb/power/wakeup \
+    /sys/devices/platform/pmic-glink/pmic_glink.power-supply.0/power_supply/qcom-battmgr-wls/power/wakeup \
+    /sys/devices/platform/pmic-glink/pmic_glink.ucsi.0/power_supply/ucsi-source-psy-pmic_glink.ucsi.01/power/wakeup \
+    /sys/devices/platform/soc@0/1c00000.pcie/pci0000:00/0000:00:00.0/0000:01:00.0/mhi0/power/wakeup \
+    /sys/devices/platform/soc@0/3f40000.ipa/power/wakeup \
+    /sys/devices/platform/soc@0/32300000.remoteproc/power/wakeup \
+    /sys/devices/platform/soc@0/6800000.remoteproc/power/wakeup; do
+    if [ -e "$wakeup" ]; then
+        printf "disabled\n" > "$wakeup"
+    fi
+done

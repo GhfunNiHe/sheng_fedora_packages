@@ -1,0 +1,13 @@
+[Unit]
+Description=Initialize Xiaomi Pad 6S Pro speaker mixer routing
+Requires=sound.target
+After=sound.target
+ConditionPathExists=/usr/bin/amixer
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/sheng-audio-init
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
