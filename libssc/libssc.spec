@@ -1,17 +1,17 @@
 %global debug_package %{nil}
 
 Name:           libssc
-Version:        0.3.0
+Version:        0.4.4
 Release:        1%{?dist}
 Summary:        Qualcomm Sensor Core userspace library
 License:        GPLv3
 URL:            https://codeberg.org/DylanVanAssche/libssc
-Source0:        https://codeberg.org/DylanVanAssche/libssc/archive/main.tar.gz#/%{name}-main.tar.gz
+Source0:        https://codeberg.org/DylanVanAssche/libssc/archive/v%{version}.tar.gz#/%{name}-%{version}.tar.gz
 Patch0:         wait_for_qmi_service.patch
 ExclusiveArch:  aarch64
 BuildRequires:  gcc meson ninja-build
-BuildRequires:  glib2-devel protobuf-c-devel
-BuildRequires:  libqmi-devel libmbim-devel
+BuildRequires:  glib2-devel protobuf-c-devel protobuf-c-compiler protobuf-compiler
+BuildRequires:  libqmi-devel
 BuildRequires:  python3-devel
 Requires:       glib2 protobuf-c libqmi
 
@@ -37,5 +37,7 @@ Provides the ssccli command-line tool for interacting with SSC sensors.
 %{_libdir}/pkgconfig/libssc.pc
 %exclude %{_libexecdir}/installed-tests
 %exclude %{python3_sitelib}/ssc_server
+%exclude %{_datadir}/gir-1.0/SSC-2.gir
+%exclude %{_libdir}/girepository-1.0/SSC-2.typelib
 
 %changelog

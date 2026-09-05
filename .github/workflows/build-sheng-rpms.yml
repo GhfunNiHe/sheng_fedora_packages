@@ -84,12 +84,13 @@ jobs:
         run: rpmbuild -ba --nodebuginfo ./sheng-sensors/sheng-sensors.spec && createrepo_c --update ~/rpmbuild/RPMS
 
       # ================================================================
-      # Phase 2: fastrpc
+      # Phase 2: hexagonrpc (replaces the retired fastrpc daemon)
+      # fastrpc build is disabled/retired; see fastrpc/fastrpc.spec.
       # ================================================================
-      - name: "Build: fastrpc"
+      - name: "Build: hexagonrpc"
         run: |
-          dnf builddep -y ./fastrpc/fastrpc.spec
-          rpmbuild -ba --nodebuginfo ./fastrpc/fastrpc.spec
+          dnf builddep -y ./hexagonrpc/hexagonrpc.spec
+          rpmbuild -ba --nodebuginfo ./hexagonrpc/hexagonrpc.spec
           createrepo_c --update ~/rpmbuild/RPMS
 
       # ================================================================
