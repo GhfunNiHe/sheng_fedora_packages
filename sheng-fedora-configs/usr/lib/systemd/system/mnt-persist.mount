@@ -1,0 +1,11 @@
+[Unit]
+Description=Xiaomi Pad 6S Pro persist partition (read-only)
+
+[Mount]
+What=/dev/disk/by-partlabel/persist
+Where=/mnt/persist
+Type=ext4
+Options=ro,noload,nosuid,nodev,noexec,x-systemd.device-timeout=10s
+
+[Install]
+WantedBy=multi-user.target

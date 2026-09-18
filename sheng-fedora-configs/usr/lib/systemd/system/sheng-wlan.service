@@ -1,0 +1,14 @@
+[Unit]
+Description=Load Sheng WLAN with its original MAC address
+RequiresMountsFor=/mnt/persist
+Before=NetworkManager.service
+ConditionPathExists=/proc/device-tree/compatible
+
+[Service]
+Type=oneshot
+ExecStartPre=/usr/bin/test -r /usr/lib/firmware/ath12k/WCN7850/hw2.0/wlan_mac.bin
+ExecStart=/usr/sbin/modprobe ath12k_wifi7
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
