@@ -1,0 +1,51 @@
+From: lzxcr/arch-xiaomi-sheng commit 7ba7526892c03fc815f293230ea1c965328565b1
+Subject: [PATCH] arm64: dts: qcom: sheng: add FastRPC reserved DMA pool, drop placeholder BT address
+
+Mirror of the Arch-side device-tree work, applied at the DTS source level:
+ * fastrpc_mem: 16 MiB reusable shared-dma-pool (4 MiB aligned, < 4 GiB)
+   for ADSP static-PD FastRPC allocations
+ * ADSP glink fastrpc node binds memory-region to that pool
+ * drop the shared placeholder local-bd-address (all sheng units ship the
+   same fake address; the real one comes from the persist partition)
+
+Subnodes are placed after properties as DTC requires.
+---
+--- a/arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dts	2026-09-16 20:45:26.000000000 +0800
++++ b/arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dts	2026-09-19 17:08:59.591135818 +0800
+@@ -220,6 +220,14 @@
+ 			no-map;
+ 		};
+ 
++		fastrpc_mem: fastrpc {
++			compatible = "shared-dma-pool";
++			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
++			alignment = <0x0 0x400000>;
++			size = <0x0 0x1000000>;
++			reusable;
++		};
++
+ 		llcc_lpi_mem: llcc-lpi-region@ff800000 {
+ 			reg = <0 0xff800000 0 0x600000>;
+ 			no-map;
+@@ -1510,6 +1518,12 @@
+ 	firmware-name = "qcom/sm8550/sheng/adsp.mbn",
+ 			"qcom/sm8550/sheng/adsp_dtb.mbn";
+ 	status = "okay";
++
++	glink-edge {
++		fastrpc {
++			memory-region = <&fastrpc_mem>;
++		};
++	};
+ };
+ 
+ &remoteproc_cdsp {
+@@ -1753,8 +1767,6 @@
+ 	bluetooth {
+ 		compatible = "qcom,wcn7850-bt";
+ 
+-		local-bd-address = [ 24 00 00 00 5a ad ];
+-
+ 		vddrfacmn-supply = <&vreg_pmu_rfa_cmn>;
+ 		vddaon-supply = <&vreg_pmu_aon_0p59>;
+ 		vddwlcx-supply = <&vreg_pmu_wlcx_0p8>;

@@ -6,7 +6,7 @@
 %global PLATFORM_NAME sm8550
 
 Version:         %{KERNEL_RPMVER}
-Release:         2.%{DEVICE_NAME}%{?dist}
+Release:         3.%{DEVICE_NAME}%{?dist}
 ExclusiveArch:  aarch64
 Name:            kernel-%{PLATFORM_NAME}
 Summary:         Mainline Linux kernel for %{PLATFORM_NAME} devices
@@ -19,6 +19,10 @@ Source2:         scripts/mkbootimg
 Source3:         extra-sm8550.config
 Source4:         ukify.conf
 Source5:         99-sheng-generic.conf
+# Device-tree fixes mirrored from lzxcr/arch-xiaomi-sheng commit 7ba7526:
+# FastRPC reserved DMA pool for ADSP static PDs + drop the shared placeholder
+# Bluetooth address. Applies to the Source0 tag tree with -p1, fuzz 0.
+Patch0:          sheng-dts-fastrpc-btaddr.patch
 
 BuildRequires:   bc bison dwarves diffutils elfutils-devel findutils git-core hmaccalc hostname make openssl-devel perl-interpreter rsync tar which flex bzip2 xz zstd python3 python3-devel python3-pyyaml rust rust-src bindgen rustfmt clippy opencsd-devel net-tools
 BuildRequires:   clang lld llvm ccache systemd-boot-unsigned systemd-ukify
@@ -38,6 +42,7 @@ from the upstream tag (e.g. %{KERNEL_VER}-%{PLATFORM_NAME}-gXXXXXXXXX).
 
 %prep
 %setup -q -n sm8550-mainline-%{KERNEL_TAG}
+%patch -P0 -p1
 
 # Resolve tag to commit hash without full clone
 COMMIT_HASH=$(git ls-remote %{url}.git refs/tags/%{KERNEL_TAG} | awk '{print $1}' | cut -c1-7)

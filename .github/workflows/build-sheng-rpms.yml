@@ -172,6 +172,7 @@ jobs:
           cp scripts/mkbootimg ~/rpmbuild/SOURCES/mkbootimg
           cp kernel-sm8550/extra-sm8550.config ~/rpmbuild/SOURCES/
           cp kernel-sm8550/ukify.conf kernel-sm8550/99-sheng-generic.conf ~/rpmbuild/SOURCES/
+          cp kernel-sm8550/sheng-dts-fastrpc-btaddr.patch ~/rpmbuild/SOURCES/
           dnf builddep -y ./kernel-sm8550/kernel-sm8550.spec
           rpmbuild -ba --nodebuginfo ./kernel-sm8550/kernel-sm8550.spec
           createrepo_c --update ~/rpmbuild/RPMS

@@ -1,0 +1,156 @@
+name: Build Kernel (sm8550-sheng)
+
+# Standalone kernel build, manual trigger only. The kernel takes 30-90 min
+# even with a warm ccache — far heavier than every other package combined —
+# so it gets its own workflow instead of riding along with the full package
+# chain in build-sheng-rpms.yml.
+#
+# The device boots the Android way (boot.img containing Image.gz-dtb), NOT
+# via UEFI, so the boot_*.img files from mkbootimg are the primary artifacts.
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a prerelease with the kernel artifacts'
+        type: boolean
+        default: true
+
+# Kernel rebuilds supersede each other; never queue them up.
+concurrency:
+  group: build-kernel-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build kernel RPM and boot images
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    container:
+      image: fedora:latest
+
+    steps:
+      - name: Install build tools
+        run: |
+          dnf install -y rpmdevtools dnf-plugins-core createrepo_c spectool git-core
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup rpmbuild dirs
+        run: |
+          mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SRPMS}
+
+      # Source0 (upstream tag tarball) and Source1 (sm8550.config) are URLs
+      # in the spec; the remaining sources are local files copied below.
+      - name: Download spec sources
+        run: |
+          spectool -g -R kernel-sm8550/kernel-sm8550.spec
+          cp scripts/mkbootimg ~/rpmbuild/SOURCES/mkbootimg
+          cp kernel-sm8550/extra-sm8550.config ~/rpmbuild/SOURCES/
+          cp kernel-sm8550/ukify.conf ~/rpmbuild/SOURCES/
+          cp kernel-sm8550/99-sheng-generic.conf ~/rpmbuild/SOURCES/
+          cp kernel-sm8550/sheng-dts-fastrpc-btaddr.patch ~/rpmbuild/SOURCES/
+
+      - name: Restore ccache
+        uses: actions/cache@v6
+        with:
+          path: ~/.ccache
+          key: ccache-kernel-sm8550-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('kernel-sm8550/kernel-sm8550.spec', 'kernel-sm8550/extra-sm8550.config') }}
+          restore-keys: |
+            ccache-kernel-sm8550-${{ runner.os }}-${{ runner.arch }}-
+            ccache-kernel-sm8550-
+
+      - name: Build kernel
+        run: |
+          mkdir -p ~/.ccache
+          dnf builddep -y ./kernel-sm8550/kernel-sm8550.spec
+          rpmbuild -ba --nodebuginfo ./kernel-sm8550/kernel-sm8550.spec
+          echo "=== ccache stats ==="
+          ccache --show-stats
+
+          KREL=$(cat ~/rpmbuild/BUILD/kernel-version)
+          echo "KREL=$KREL" >> "$GITHUB_ENV"
+          {
+            echo "### Kernel build result"
+            echo ""
+            echo "- kernel release: \`${KREL}\`"
+            ls -lh ~/rpmbuild/BUILD/boot_*.img || true
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # boot_*.img are produced in %build but deliberately not packaged in
+      # the RPM (flashing is a manual, operator-driven step); collect them
+      # together with the RPM.
+      - name: Collect artifacts
+        run: |
+          mkdir -p ~/rpmbuild/out
+          cp ~/rpmbuild/BUILD/boot_*.img ~/rpmbuild/out/
+          cp ~/rpmbuild/RPMS/aarch64/*.rpm ~/rpmbuild/out/
+          ls -lh ~/rpmbuild/out/
+
+      # Assert the DTS patch actually landed in the shipped DTB. rpmbuild
+      # removes the package build tree after a successful build, so verify
+      # against the DTB packaged inside the RPM (mirrors the Arch-side
+      # build-time assertions, but done on the actual deliverable).
+      - name: Verify patched DTB
+        run: |
+          dnf install -y dtc cpio
+          RPM=$(ls ~/rpmbuild/RPMS/aarch64/kernel-sm8550-*.rpm | head -1)
+          if [ -z "$RPM" ]; then echo 'FAIL: no kernel RPM built'; exit 1; fi
+          mkdir -p ~/rpmbuild/dtbcheck && cd ~/rpmbuild/dtbcheck
+          rpm2cpio "$RPM" | cpio -idm --quiet
+          DTB=$(find . -name 'sm8550-xiaomi-sheng.dtb' | head -1)
+          if [ -z "$DTB" ]; then echo 'FAIL: no DTB inside the RPM'; exit 1; fi
+          DTS=$(dtc -I dtb -O dts "$DTB" 2>/dev/null)
+          echo "$DTS" | grep -q 'fastrpc {' \
+            || { echo 'FAIL: fastrpc reserved-memory node missing'; exit 1; }
+          echo "$DTS" | grep -q 'compatible = "shared-dma-pool"' \
+            || { echo 'FAIL: fastrpc pool is not a shared-dma-pool'; exit 1; }
+          echo "$DTS" | grep -q 'memory-region' \
+            || { echo 'FAIL: ADSP fastrpc memory-region binding missing'; exit 1; }
+          if echo "$DTS" | grep -q 'local-bd-address'; then
+            echo 'FAIL: placeholder Bluetooth address still present'; exit 1
+          fi
+          echo "DTB verification passed: $RPM -> $DTB"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: sheng-kernel-${{ env.KREL }}
+          path: ~/rpmbuild/out/**
+          # Keep as long as GitHub allows (90 days)
+          retention-days: 90
+          if-no-files-found: error
+
+  # ==================================================================
+  # Prerelease with the kernel artifacts (default on when triggered)
+  # ==================================================================
+  release:
+    name: Create prerelease
+    needs: build
+    if: ${{ inputs.create_release }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Get short commit SHA
+        run: echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: sheng-kernel-*
+          merge-multiple: true
+          path: artifacts
+
+      - name: Create prerelease
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: kernel-${{ env.SHORT_SHA }}
+          name: Kernel sm8550-sheng (${{ env.SHORT_SHA }})
+          files: artifacts/**
+          prerelease: true
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
