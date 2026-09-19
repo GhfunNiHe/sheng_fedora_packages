@@ -16,12 +16,6 @@ Requires:       qbootctl
 %global _firmwaredir %{_prefix}/lib/firmware
 
 %description
-System-wide configuration and helper scripts for the Xiaomi Pad 6S Pro (sheng).
-Provides module-load, modprobe, NetworkManager, sysctl and tmpfiles drop-ins,
-systemd units for boot-time setup (persist mount, WLAN MAC restoration,
-bluetooth MAC fixing, audio mixer init, suspend tuning), the
-auto-login/rmtfs/qbootctl/waydroid overrides, and the Android bootstrap
-launcher helpers.
 
 %prep
 %autosetup
