@@ -11,6 +11,7 @@ Source0:        %{name}-%{version}.tar.gz
 BuildRequires:  systemd-rpm-macros
 Requires:       systemd
 Requires:       xiaomi-sheng-firmware
+Requires:       qbootctl
 
 %global _firmwaredir %{_prefix}/lib/firmware
 
