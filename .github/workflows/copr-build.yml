@@ -1,0 +1,206 @@
+name: Copr Build
+
+# The `copr` branch is the Copr build branch: a push that touches a spec (or
+# .copr/ or this workflow) rebuilds only the affected packages, in dependency
+# order.  SRPMs are generated from here by .copr/make-srpm.sh through Copr's
+# "make srpm" SCM method, so the spec files stay buildable with a plain
+# `rpmbuild -ba` (see build-sheng-rpms.yml).
+#
+# See .copr/README.md for the one-time setup (Copr project, chroots, secrets).
+
+on:
+  push:
+    branches:
+      - copr
+    paths:
+      - '**/*.spec'
+      - '.copr/**'
+      - '.github/workflows/copr-build.yml'
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: 'Space separated package directories; empty builds everything'
+        type: string
+        default: ''
+
+# Never queue two Copr runs for the same branch.
+concurrency:
+  group: copr-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CLONE_URL: ${{ github.server_url }}/${{ github.repository }}.git
+  COPR_PROJECT: ${{ vars.COPR_PROJECT || 'sheng_fedora_packages' }}
+  # Dependency order, dependencies first: fastrpc and libssc are BuildRequires
+  # of the packages that follow them.
+  PACKAGE_ORDER: >-
+    xiaomi-sheng-firmware alsa-xiaomi-sheng xiaomi-mipps-auth
+    xiaomi-charger-mode sheng-sensors sheng-fedora-configs fastrpc libssc
+    iio-sensor-proxy xiaomi-sheng-thp xiaomi-sheng-keyboard-helper
+    sheng-devauth hexagonrpc xiaomi-pen-status xiaomi-sheng-fingerprint
+    kernel-sm8550
+  # Optional repository variable, e.g. "sheng-sensors xiaomi-sheng-firmware",
+  # to keep packages with unclear redistribution terms out of Copr.
+  SKIP_PACKAGES: ${{ vars.SKIP_PACKAGES }}
+
+jobs:
+  select:
+    name: Select packages
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.select.outputs.packages }}
+      kernel: ${{ steps.select.outputs.kernel }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Work out what to build
+        id: select
+        env:
+          REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.packages || '' }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          all="$PACKAGE_ORDER"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              changed="${REQUESTED:-$all}"
+          elif [ -z "$BEFORE" ] || [ -z "${BEFORE//0/}" ]; then
+              # A new branch reports an all-zero "before" sha: build everything.
+              changed="$all"
+          else
+              files="$(git diff --name-only "$BEFORE" "$SHA" || true)"
+              if [ -z "$files" ] || echo "$files" | grep -q '^\.copr/'; then
+                  # Packaging logic changed: it applies to every package.
+                  changed="$all"
+              else
+                  changed="$(echo "$files" | grep '\.spec$' | xargs -r -n1 dirname | tr '\n' ' ')"
+              fi
+          fi
+
+          selected=""
+          kernel="false"
+          for pkg in $all; do
+              case " $changed " in *" $pkg "*) ;; *) continue ;; esac
+              case " $SKIP_PACKAGES " in
+                  *" $pkg "*) echo "skipping $pkg (SKIP_PACKAGES)"; continue ;;
+              esac
+              if [ ! -f "$pkg/$pkg.spec" ]; then
+                  echo "warning: $pkg/$pkg.spec not found, skipping"
+                  continue
+              fi
+              if [ "$pkg" = "kernel-sm8550" ]; then
+                  kernel="true"
+              else
+                  selected="$selected $pkg"
+              fi
+          done
+
+          selected="${selected# }"
+          echo "packages: ${selected:-<none>}"
+          echo "kernel: $kernel"
+          {
+              echo "packages=$selected"
+              echo "kernel=$kernel"
+          } >> "$GITHUB_OUTPUT"
+
+  packages:
+    name: Build packages on Copr
+    needs: select
+    if: needs.select.outputs.packages != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: fedora:latest
+    steps:
+      - name: Install copr-cli
+        run: dnf install -y copr-cli
+
+      - name: Configure copr-cli
+        env:
+          COPR_LOGIN: ${{ secrets.COPR_LOGIN }}
+          COPR_USERNAME: ${{ secrets.COPR_USERNAME }}
+          COPR_TOKEN: ${{ secrets.COPR_TOKEN }}
+          COPR_API_URL: ${{ secrets.COPR_API_URL || 'https://copr.fedorainfracloud.org' }}
+        run: |
+          umask 077
+          mkdir -p ~/.config
+          cat > ~/.config/copr <<EOF
+          [copr-cli]
+          login = ${COPR_LOGIN}
+          username = ${COPR_USERNAME}
+          token = ${COPR_TOKEN}
+          copr_url = ${COPR_API_URL}
+          EOF
+          copr-cli whoami
+
+      - name: Build
+        env:
+          PACKAGES: ${{ needs.select.outputs.packages }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for pkg in $PACKAGES; do
+              echo "::group::Copr build: $pkg"
+              # No --nowait: Copr resolves BuildRequires from this project's own
+              # repository, so each dependency must exist before the next build.
+              copr-cli buildscm "$COPR_PROJECT" \
+                  --clone-url "$CLONE_URL" \
+                  --commit "$SHA" \
+                  --type git \
+                  --subdir "$pkg" \
+                  --spec "$pkg.spec" \
+                  --method make_srpm
+              echo "::endgroup::"
+          done
+
+  kernel:
+    name: Build kernel on Copr
+    needs: select
+    if: needs.select.outputs.kernel == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: fedora:latest
+    steps:
+      - name: Install copr-cli
+        run: dnf install -y copr-cli
+
+      - name: Configure copr-cli
+        env:
+          COPR_LOGIN: ${{ secrets.COPR_LOGIN }}
+          COPR_USERNAME: ${{ secrets.COPR_USERNAME }}
+          COPR_TOKEN: ${{ secrets.COPR_TOKEN }}
+          COPR_API_URL: ${{ secrets.COPR_API_URL || 'https://copr.fedorainfracloud.org' }}
+        run: |
+          umask 077
+          mkdir -p ~/.config
+          cat > ~/.config/copr <<EOF
+          [copr-cli]
+          login = ${COPR_LOGIN}
+          username = ${COPR_USERNAME}
+          token = ${COPR_TOKEN}
+          copr_url = ${COPR_API_URL}
+          EOF
+          copr-cli whoami
+
+      - name: Build
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # %prep resolves the upstream tag with git ls-remote, so this build
+          # needs the network, and unlike the ccache-assisted CI build it starts
+          # from a cold tree, so it gets a 6 h timeout instead of Copr's 5 h.
+          copr-cli buildscm "$COPR_PROJECT" \
+              --clone-url "$CLONE_URL" \
+              --commit "$SHA" \
+              --type git \
+              --subdir kernel-sm8550 \
+              --spec kernel-sm8550.spec \
+              --method make_srpm \
+              --enable-net on \
+              --timeout 21600
