@@ -1,4 +1,4 @@
-name: Build Kernel (sm8550-sheng)
+name: Build Kernel
 
 # Standalone kernel build, manual trigger only. The kernel takes 30-90 min
 # even with a warm ccache — far heavier than every other package combined —
@@ -11,8 +11,8 @@ name: Build Kernel (sm8550-sheng)
 on:
   workflow_dispatch:
     inputs:
-      create_release:
-        description: 'Create a prerelease with the kernel artifacts'
+      prerelease:
+        description: 'Publish as a prerelease (untick to publish a full release)'
         type: boolean
         default: true
 
@@ -91,10 +91,17 @@ jobs:
       # Assert the DTS patch actually landed in the shipped DTB. rpmbuild
       # removes the package build tree after a successful build, so verify
       # against the DTB packaged inside the RPM (mirrors the Arch-side
-      # build-time assertions, but done on the actual deliverable).
+      # build-time assertions, but done on the actual deliverable). The patch
+      # itself is an optional build option of kernel-sm8550 (%bcond dts_patch,
+      # off by default), so the assertions only apply when it is enabled.
       - name: Verify patched DTB
         run: |
           dnf install -y dtc cpio
+          if ! rpmspec -P kernel-sm8550/kernel-sm8550.spec | grep -q '^Patch0:'; then
+            echo 'kernel-sm8550 is built without the sheng DTS patch (dts_patch off); skipping DTB verification'
+            echo "Enable it with: rpmbuild -ba --with dts_patch kernel-sm8550/kernel-sm8550.spec"
+            exit 0
+          fi
           RPM=$(ls ~/rpmbuild/RPMS/aarch64/kernel-sm8550-*.rpm | head -1)
           if [ -z "$RPM" ]; then echo 'FAIL: no kernel RPM built'; exit 1; fi
           mkdir -p ~/rpmbuild/dtbcheck && cd ~/rpmbuild/dtbcheck
@@ -123,12 +130,14 @@ jobs:
           if-no-files-found: error
 
   # ==================================================================
-  # Prerelease with the kernel artifacts (default on when triggered)
+  # Publish the kernel artifacts as a GitHub release: a prerelease when the
+  # `prerelease` input is ticked (the default), a full release otherwise.
+  # Re-running with a different choice updates the existing kernel-<sha>
+  # release in place, which doubles as the prerelease -> release promotion.
   # ==================================================================
   release:
-    name: Create prerelease
+    name: Create release
     needs: build
-    if: ${{ inputs.create_release }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -144,13 +153,13 @@ jobs:
           merge-multiple: true
           path: artifacts
 
-      - name: Create prerelease
+      - name: Publish release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: kernel-${{ env.SHORT_SHA }}
           name: Kernel sm8550-sheng (${{ env.SHORT_SHA }})
           files: artifacts/**
-          prerelease: true
+          prerelease: ${{ inputs.prerelease }}
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
